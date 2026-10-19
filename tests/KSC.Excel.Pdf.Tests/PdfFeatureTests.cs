@@ -174,6 +174,35 @@ public class PdfFeatureTests
     }
 
     [Fact]
+    public void Carried_forward_totals_appear_at_page_bottoms_and_tops()
+    {
+        var b = new TemplateBuilder("Carry", "carry");
+        var head = b.Style("h", new StyleDef { Bold = true, Fill = "#1F4E79", Color = "#FFFFFF" });
+        var num = b.Style("n", new StyleDef { Format = "#,##0" });
+        b.Sheet("S", s =>
+        {
+            s.Col(1, 20).Col(2, 14).Row(1, 20);
+            s.Cell("A1", "نام", head).Cell("B1", "مبلغ", head);
+            s.Cell("A2", "{{Name}}").Cell("B2", "{{Amount}}", num);
+            s.Band("Detail", "Rows", 2, 2);
+            s.Cell("A3", "جمع کل").Cell("B3", "=SUBTOTAL(9,[Detail.Amount])", num);
+            s.Raw(sh => { sh.Page.PrintTitleRows = "1:1"; sh.Page.CarryBand = "Detail"; sh.Page.CarryColumns = "B"; sh.Rtl = true; });
+        }, rtl: true);
+        var data = JObject.FromObject(new { Rows = Enumerable.Range(1, 90).Select(i => new { Name = "ردیف " + i, Amount = i * 1000 }) });
+        var wb = Svc().Bind(b.Build(), data, null);
+        int pages = ExcelPdf.CountPages(wb);
+        Assert.True(pages >= 3, "pages: " + pages);
+        bool Grey(SKColor c) => c.Red == 0xF2 && c.Green == 0xF2 && c.Blue == 0xF2;
+        using var p1 = Page(wb, 1); using var p2 = Page(wb, 2); using var last = Page(wb, pages);
+        int g1 = CountColor(p1, Grey), g2 = CountColor(p2, Grey), gl = CountColor(last, Grey);
+        Assert.True(g1 > 1500, "first page shows only the carried-forward row: " + g1);
+        Assert.True(g2 > g1 * 1.6, "middle pages show both rows: " + g2 + " vs " + g1);
+        Assert.InRange(gl, g1 * 0.5, g1 * 1.5);                       // last page: only the brought-forward row
+        var dir = Environment.GetEnvironmentVariable("KXL_PDF_PNG_DIR");
+        if (!string.IsNullOrEmpty(dir)) { File.WriteAllBytes(Path.Combine(dir, "carry-1.png"), ExcelPdf.RenderPng(wb, 1, 1.5f)); File.WriteAllBytes(Path.Combine(dir, "carry-2.png"), ExcelPdf.RenderPng(wb, 2, 1.5f)); File.WriteAllBytes(Path.Combine(dir, "carry-last.png"), ExcelPdf.RenderPng(wb, pages, 1.5f)); }
+    }
+
+    [Fact]
     public void Visual_sample_for_manual_inspection()
     {
         var dir = Environment.GetEnvironmentVariable("KXL_PDF_PNG_DIR");
@@ -207,5 +236,48 @@ public class PdfFeatureTests
         var wb = Svc().Bind(b.Build(), data, null);
         File.WriteAllBytes(Path.Combine(dir, "features-page1.png"), ExcelPdf.RenderPng(wb, 1, 2f));
         File.WriteAllBytes(Path.Combine(dir, "features.pdf"), ExcelPdf.Render(wb));
+    }
+}
+
+public class PdfFormTests
+{
+    static IExcelReportService Svc() => new ExcelReportService(new KscExcelOptions(), new MemoryTemplateStore());
+    static SKBitmap Png(RenderedWorkbook wb) => SKBitmap.Decode(ExcelPdf.RenderPng(wb, 1, 1f));
+    static int Ink(SKBitmap b, Func<SKColor, bool> f) { int n = 0; for (int y = 0; y < b.Height; y++) for (int x = 0; x < b.Width; x++) if (f(b.GetPixel(x, y))) n++; return n; }
+
+    [Fact]
+    public void Page_frame_is_drawn_around_the_printable_area()
+    {
+        var b = new TemplateBuilder("F", "f"); b.Sheet("S", s => s.Cell("A1", "x")); var t = b.Build();
+        using var plain = Png(Svc().Bind(t, null, null));
+        t.Sheets[0].Page.PageFrame = true; t.Sheets[0].Page.FrameColor = "#FF0000";
+        using var framed = Png(Svc().Bind(t, null, null));
+        bool Red(SKColor c) => c.Red > 200 && c.Green < 80 && c.Blue < 80;
+        Assert.Equal(0, Ink(plain, Red));
+        Assert.True(Ink(framed, Red) > 1500, "a red rectangle should surround the page content area");
+    }
+
+    [Fact]
+    public void Wrapped_text_makes_rows_grow_instead_of_being_clipped()
+    {
+        var b = new TemplateBuilder("W", "w");
+        var wrap = b.Style("w", new StyleDef { Wrap = true, V = "top" });
+        b.Sheet("S", s => { s.Col(1, 12); s.Cell("A1", "این یک متن بسیار طولانی است که باید در چند خط شکسته شود و ردیف باید بزرگ‌تر شود", wrap); s.Cell("A2", "next row marker"); });
+        var wb = Svc().Bind(b.Build(), null, null);
+        using var bmp = Png(wb);
+        // the second row's text must sit below several wrapped lines (default row height is 18pt: one line only)
+        int lastInkY = 0; for (int y = 0; y < bmp.Height; y++) for (int x = 0; x < bmp.Width; x++) if (bmp.GetPixel(x, y).Red < 100) { lastInkY = y; break; }
+        Assert.True(lastInkY > 36 + 18 * 3, "the marker row should be pushed down by the wrapped lines: " + lastInkY);
+    }
+
+    [Fact]
+    public void Persian_digits_option_changes_the_output_and_does_not_break()
+    {
+        var b = new TemplateBuilder("P", "p"); b.Sheet("S", s => { s.Cell("A1", "{{N}}"); });
+        var wb = Svc().Bind(b.Build(), JObject.Parse("{\"N\":123456}"), null);
+        var a = ExcelPdf.RenderPng(wb, 1, 2f);
+        var p = ExcelPdf.RenderPng(wb, 1, 2f, new PdfOptions { PersianDigits = true });
+        Assert.NotEqual(a, p);
+        Assert.True(p.Length > 500);
     }
 }

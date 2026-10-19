@@ -22,4 +22,7 @@ public sealed class PdfOptions
 
     /// <summary>Password protection / permissions (AES-256). Null = an ordinary PDF. Example: <c>new PdfOptions { Security = new PdfSecurity { UserPassword = "1234", AllowCopy = false } }</c>.</summary>
     public PdfSecurity? Security { get; set; }
+
+    /// <summary>Show digits as Persian digits on every page (overrides the template's own setting).</summary>
+    public bool PersianDigits { get; set; }
 }

@@ -155,6 +155,7 @@ namespace KSC.Excel.Preview
                     else text = NumberFormatter.Format(val, style?.Format);
 
                     cf.Apply(r, c, val, css, ref text);
+                    if (sh.Page != null && sh.Page.PersianDigits) text = TextEvaluator.ToPersianDigits(text);
 
                     sb.Append(" style=\"").Append(css).Append("\">");
                     if (!string.IsNullOrEmpty(cell?.Link)) sb.Append("<a href=\"").Append(Enc(SafeUrl(cell.Link))).Append("\" target=\"_blank\" rel=\"noopener\" style=\"color:inherit\">").Append(Enc(text)).Append("</a>");

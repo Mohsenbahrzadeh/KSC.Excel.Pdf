@@ -139,7 +139,7 @@ public static class KscExcelExtensions
 
         async Task Handle(HttpContext ctx)
         {
-            var req = new ReportRequest { Name = (string?)ctx.Request.RouteValues["name"], BasePath = ctx.Request.PathBase + pattern };
+            var req = new ReportRequest { Name = (string?)ctx.Request.RouteValues["name"], BasePath = ctx.Request.PathBase + pattern, User = ctx.User };
             foreach (var kv in ctx.Request.Query) req.Query[kv.Key] = kv.Value.ToString();
             var res = server.Handle(req);
             ctx.Response.StatusCode = res.Status;

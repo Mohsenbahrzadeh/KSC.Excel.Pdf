@@ -114,7 +114,7 @@ namespace KSC.Excel.Mvc
                 context.Response.Write("Not allowed to use the reports.");
                 return;
             }
-            var req = new KSC.Excel.Services.ReportRequest { Name = string.IsNullOrEmpty(_name) ? null : _name, BasePath = VirtualPathUtility.ToAbsolute("~/" + _basePath.Trim('/')).TrimEnd('/') };
+            var req = new KSC.Excel.Services.ReportRequest { User = context.User, Name = string.IsNullOrEmpty(_name) ? null : _name, BasePath = VirtualPathUtility.ToAbsolute("~/" + _basePath.Trim('/')).TrimEnd('/') };
             foreach (string key in context.Request.QueryString.AllKeys) if (key != null) req.Query[key] = context.Request.QueryString[key];
             var res = KscExcel.Reports.Handle(req);
             context.Response.StatusCode = res.Status;

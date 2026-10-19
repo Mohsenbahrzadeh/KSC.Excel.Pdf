@@ -21,6 +21,18 @@ namespace KSC.Excel.Services
         public string Title { get; set; }
         /// <summary>Returns the data for the report parameters (any object / list / DataTable / JSON). May return null when the template reads its own data sets.</summary>
         public Func<IDictionary<string, object>, object> Data { get; set; }
+        /// <summary>Same, but also receives the user (row-level security). Used instead of <see cref="Data"/> when set.</summary>
+        public Func<ReportContext, object> ContextData { get; set; }
+        /// <summary>Only users in one of these roles may run the report (empty = anyone who reaches the URL).</summary>
+        public IList<string> Roles { get; set; }
+        /// <summary>Extra rule, e.g. <c>u =&gt; u.Identity.Name.EndsWith("@corp.com")</c>. Applies on top of <see cref="Roles"/>.</summary>
+        public Func<System.Security.Principal.IPrincipal, bool> Authorize { get; set; }
+
+        internal object Load(IDictionary<string, object> parameters, System.Security.Principal.IPrincipal user)
+        {
+            if (ContextData != null) return ContextData(new ReportContext { ReportName = Name, Parameters = parameters, User = user });
+            return Data == null ? null : Data(parameters);
+        }
     }
 
     /// <summary>Framework-neutral request of the report server.</summary>
@@ -32,6 +44,8 @@ namespace KSC.Excel.Services
         public IDictionary<string, string> Query { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         /// <summary>Public URL of the report server root without trailing slash, e.g. "/reports".</summary>
         public string BasePath { get; set; } = "/reports";
+        /// <summary>The signed-in user (for report roles, row-level data and the audit trail).</summary>
+        public System.Security.Principal.IPrincipal User { get; set; }
     }
 
     /// <summary>Turns query-string values into typed report parameters.</summary>
@@ -117,24 +131,34 @@ namespace KSC.Excel.Services
 
         public DesignerResponse Handle(ReportRequest req)
         {
+            ReportDef def = null;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            string action = "view"; string parameters = ""; var status = ReportAuditStatus.Ok; string detail = null;
             try
             {
                 if (string.IsNullOrEmpty(req.Name)) return Page("Reports", Catalog(req), req);
-                ReportDef def;
                 if (!_opt.Reports.TryGetValue(req.Name, out def)) return Text(404, "Report not found.");
+                int denied = ReportSecurity.Check(def, req.User);
+                if (denied != 0)
+                {
+                    status = ReportAuditStatus.Denied; detail = denied == 401 ? "not signed in" : "not allowed";
+                    return Text(denied, denied == 401 ? "Sign in to open this report." : "You are not allowed to open this report.");
+                }
                 ExcelTemplate tpl;
                 try { tpl = _svc.GetTemplate(def.Template ?? def.Name); }
-                catch (System.IO.FileNotFoundException) { return Text(404, "The template of this report was not found."); }
+                catch (System.IO.FileNotFoundException) { status = ReportAuditStatus.Error; detail = "template missing"; return Text(404, "The template of this report was not found."); }
 
                 var pars = ReportParameters.FromQuery(tpl, req.Query);
+                parameters = ReportSecurity.Params(pars);
                 string fmtText; req.Query.TryGetValue("format", out fmtText);
                 ReportFormat fmt;
                 bool isView = string.IsNullOrEmpty(fmtText) || fmtText.Equals("view", StringComparison.OrdinalIgnoreCase);
                 if (!isView)
                 {
                     if (!ReportExport.TryParseFormat(fmtText, out fmt)) return Text(400, "Unknown format. Use pdf, xlsx, docx, csv, html or png.");
+                    action = fmt.ToString().ToLowerInvariant();
                     int page = 1; string pg; if (req.Query.TryGetValue("page", out pg)) int.TryParse(pg, out page);
-                    var data = def.Data == null ? null : def.Data(pars);
+                    var data = def.Load(pars, req.User);
                     var file = _svc.Export(_opt, tpl, data, pars, fmt, Math.Max(1, page));
                     var res = new DesignerResponse { ContentType = file.ContentType, Body = file.Bytes };
                     string dl; bool forceDownload = req.Query.TryGetValue("download", out dl) && dl == "1";
@@ -146,20 +170,26 @@ namespace KSC.Excel.Services
                 }
                 return Page(def.Title ?? tpl.Title ?? def.Name, View(def, tpl, pars, req), req);
             }
-            catch (ExcelRenderException ex) { return Text(422, ex.Message); }
+            catch (ExcelRenderException ex) { status = ReportAuditStatus.Error; detail = "render: " + ex.GetType().Name; return Text(422, ex.Message); }
             catch (Exception ex)
             {
+                status = ReportAuditStatus.Error; detail = ex.GetType().Name;
                 if (_opt.OnReportError != null) { try { _opt.OnReportError(req.Name, ex); } catch (Exception) { } }
                 return Text(500, "The report could not be produced.");
+            }
+            finally
+            {
+                if (def != null)
+                    ReportSecurity.Write(_opt, new ReportAuditEntry { Time = DateTime.Now, User = ReportSecurity.UserName(req.User), Report = def.Name, Action = action, Status = status, Parameters = parameters, DurationMs = sw.ElapsedMilliseconds, Detail = detail });
             }
         }
 
         string Catalog(ReportRequest req)
         {
             var sb = new StringBuilder("<ul style=\"line-height:2\">");
-            foreach (var r in _opt.Reports.Values.OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase))
+            foreach (var r in _opt.Reports.Values.Where(x => ReportSecurity.Check(x, req.User) == 0).OrderBy(x => x.Name, StringComparer.CurrentCultureIgnoreCase))
                 sb.Append("<li><a href=\"").Append(WebUtility.HtmlEncode(req.BasePath.TrimEnd('/') + "/" + Uri.EscapeDataString(r.Name))).Append("\">").Append(WebUtility.HtmlEncode(r.Title ?? r.Name)).Append("</a></li>");
-            if (_opt.Reports.Count == 0) sb.Append("<li>—</li>");
+            if (!_opt.Reports.Values.Any(x => ReportSecurity.Check(x, req.User) == 0)) sb.Append("<li>—</li>");
             return sb.Append("</ul>").ToString();
         }
 
@@ -190,7 +220,7 @@ namespace KSC.Excel.Services
                 sb.Append("<iframe src=\"").Append(WebUtility.HtmlEncode(self + ReportParameters.QueryString(req.Query, "format=pdf") + "#view=FitH")).Append("\" title=\"PDF\" style=\"width:100%;height:80vh;border:1px solid #ccd;border-radius:4px\"></iframe>");
             else
             {
-                var data = def.Data == null ? null : def.Data(pars);
+                var data = def.Load(pars, req.User);
                 var wb = _svc.Bind(tpl, data, pars);
                 sb.Append(HtmlPreviewRenderer.Render(wb, new PreviewOptions { MaxRows = _opt.PreviewMaxRows, ShowHeaders = false }));
             }

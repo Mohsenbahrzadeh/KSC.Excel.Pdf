@@ -215,6 +215,16 @@ namespace KSC.Excel.Model
         public int LastCol { get; set; }
         /// <summary>Start every item (except the first) on a new printed page / PDF page (page per group, one invoice per page...).</summary>
         public bool PageBreak { get; set; }
+        /// <summary>Keep only the items for which this expression is true, e.g. <c>AND(Qty &gt; 10, Status = 'open')</c> (evaluated per item, before sorting and grouping).</summary>
+        public string Filter { get; set; }
+        /// <summary>Keep only the first N items (after sorting / grouping and <see cref="TopBy"/>). 0 = all.</summary>
+        public int Top { get; set; }
+        /// <summary>Rank the items by this path or "=expression" before taking <see cref="Top"/> (largest first; groups: "Count" or "=Sum(Items.Amount)").</summary>
+        public string TopBy { get; set; }
+        /// <summary>With <see cref="TopBy"/>: smallest first ("bottom N") instead of largest first.</summary>
+        public bool TopAscending { get; set; }
+        /// <summary>Pad the band with empty rows up to this many rows (printed forms with a fixed number of lines). Padding rows are blank; use <c>{{IF($pad, '', $index)}}</c> to hide numbers.</summary>
+        public int MinRows { get; set; }
     }
 
     /// <summary>A computed collection available to the template (no code needed), e.g. a cross-tab.</summary>
@@ -392,5 +402,18 @@ namespace KSC.Excel.Model
         public string PrintArea { get; set; }
         /// <summary>PDF only: diagonal text drawn behind every page (e.g. "DRAFT", "محرمانه").</summary>
         public string Watermark { get; set; }
+        /// <summary>PDF only, "carried forward" totals: name of the detail band whose numeric columns are summed page by page.</summary>
+        public string CarryBand { get; set; }
+        /// <summary>Columns to carry, e.g. "D,E". At the bottom of each page a row shows the running total (carried to the next page) and the next page starts with it.</summary>
+        public string CarryColumns { get; set; }
+        /// <summary>Texts of the two rows (default: Persian for RTL sheets, English otherwise).</summary>
+        public string CarryLabelOut { get; set; }
+        public string CarryLabelIn { get; set; }
+        /// <summary>PDF and HTML preview: show every digit as a Persian digit (۰-۹), like printed Iranian forms. The .xlsx keeps real numbers.</summary>
+        public bool PersianDigits { get; set; }
+        /// <summary>PDF only: draw a frame around the printable area of every page (forms, waybills).</summary>
+        public bool PageFrame { get; set; }
+        /// <summary>Frame color (#RRGGBB, default light grey).</summary>
+        public string FrameColor { get; set; }
     }
 }

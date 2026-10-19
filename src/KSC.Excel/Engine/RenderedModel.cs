@@ -37,6 +37,8 @@ namespace KSC.Excel.Engine
         public string PrintArea;
         /// <summary>Rows after which a manual page break occurs (1-based, output coordinates).</summary>
         public List<int> RowBreaks = new List<int>();
+        /// <summary>Band name -> first/last output row of all its occurrences (used for page-by-page carried totals).</summary>
+        public Dictionary<string, int[]> BandRuns = new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
 
         public RenderedCell Get(int row, int col)
         {

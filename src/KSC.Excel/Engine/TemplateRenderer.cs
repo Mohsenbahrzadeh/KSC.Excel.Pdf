@@ -182,6 +182,7 @@ namespace KSC.Excel.Engine
                 EmitRange(1, _maxTplRow, _rootBands, scope);
 
                 ResolveFormulas();
+                if (scope.HasRuns) foreach (var kv in scope.Runs) _out.BandRuns[kv.Key] = new[] { kv.Value[0], kv.Value[1] };
                 MapDecorations(scope);
 
                 foreach (var r in _out.Rows) if (r.Cells.Count > 0) _out.MaxCol = Math.Max(_out.MaxCol, r.Cells[r.Cells.Count - 1].Col);
@@ -268,15 +269,22 @@ namespace KSC.Excel.Engine
             {
                 var raw = DataAccess.Resolve(scope, b.Source);
                 // streaming: never materialize a plain collection (sorting/grouping need it in memory anyway)
-                bool lazy = _sink != null && string.IsNullOrEmpty(b.SortBy) && string.IsNullOrEmpty(b.GroupBy);
+                bool lazy = _sink != null && string.IsNullOrEmpty(b.SortBy) && string.IsNullOrEmpty(b.GroupBy) && string.IsNullOrEmpty(b.Filter) && b.Top <= 0 && b.MinRows <= 0;
                 IEnumerable<object> seq; int count = 0;
                 if (lazy) seq = DataAccess.ItemsLazy(raw);
                 else
                 {
                     var items = DataAccess.Items(raw).ToList();
+                    if (!string.IsNullOrWhiteSpace(b.Filter)) items = items.Where(it => Truthy(_text.Eval("{{" + b.Filter + "}}", new DataScope(it, scope)).Value)).ToList();
                     if (!string.IsNullOrEmpty(b.SortBy)) items = SortItems(items, b.SortBy, b.SortDesc, scope);
                     if (!string.IsNullOrEmpty(b.GroupBy)) items = GroupItems(items, b.GroupBy, scope);
+                    if (b.Top > 0)
+                    {
+                        if (!string.IsNullOrEmpty(b.TopBy)) items = SortItems(items, b.TopBy, !b.TopAscending, scope);
+                        if (items.Count > b.Top) items = items.Take(b.Top).ToList();
+                    }
                     if (items.Count == 0 && b.KeepWhenEmpty) items.Add(null);
+                    for (int pad = items.Count; pad < b.MinRows && b.MinRows <= 2000; pad++) items.Add(new PadItem());
                     count = items.Count; seq = items;
                 }
                 List<BandDef> kids;
@@ -315,6 +323,13 @@ namespace KSC.Excel.Engine
                 for (var s = scope; s != null; s = s.Parent)
                     if (s.Band != null && !string.IsNullOrEmpty(s.Band.AlternateFill) && s.Index % 2 == 0) return s.Band.AlternateFill;
                 return null;
+            }
+
+            static bool Truthy(object v)
+            {
+                if (v is bool) return (bool)v;
+                if (v is string) { var s = ((string)v).Trim().ToLowerInvariant(); return s == "true" || s == "1" || s == "yes"; }
+                double d; return DataAccess.TryNumber(v, out d) && d != 0;
             }
 
             // a path ("Date") or, when it starts with "=", an expression ("=JYM(Date)", "=IF(Qty>10,'big','small')")

@@ -23,7 +23,7 @@ public static class ExcelPdf
         {
             // draw normally, then encrypt the finished file
             using var plain = new MemoryStream();
-            Render(wb, plain, new PdfOptions { FallbackFontFamily = options.FallbackFontFamily, FontFile = options.FontFile, MaxPages = options.MaxPages, Title = options.Title, PrintGridLines = options.PrintGridLines, Watermark = options.Watermark });
+            Render(wb, plain, new PdfOptions { FallbackFontFamily = options.FallbackFontFamily, FontFile = options.FontFile, MaxPages = options.MaxPages, Title = options.Title, PrintGridLines = options.PrintGridLines, Watermark = options.Watermark, PersianDigits = options.PersianDigits });
             var enc = PdfEncryptor.Encrypt(plain.ToArray(), options.Security);
             output.Write(enc, 0, enc.Length);
             return;
@@ -72,6 +72,13 @@ internal sealed class PageSpec
     public float W, H, Scale;
     public int ColFrom, ColTo;
     public List<int> Rows = new();
+    /// <summary>How many leading entries of <see cref="Rows"/> are repeated title rows.</summary>
+    public int TitleCount;
+    /// <summary>Carried-forward totals (one per carry column) shown at the top / bottom of the page, or null.</summary>
+    public double[]? CarryIn, CarryOut;
+    public int[] CarryCols = Array.Empty<int>();
+    public float CarryH;
+    public int[]? CarryRun;
 }
 
 internal sealed class SheetGeo
@@ -132,7 +139,41 @@ internal sealed class PdfJob : IDisposable
             g.Anchors[(m[0], m[1])] = new[] { m[2], m[3] };
             for (int r = m[0]; r <= m[2]; r++) for (int c = m[1]; c <= m[3]; c++) if (r != m[0] || c != m[1]) g.Covered.Add((r, c));
         }
+        AutoRowHeights(g, dataRows);
         return g;
+    }
+
+    /// <summary>Rows without an explicit height grow to fit wrapped text (like Excel's auto-fit).</summary>
+    void AutoRowHeights(SheetGeo g, int dataRows)
+    {
+        var s = g.S; var tpl = _wb.Template;
+        for (int r = 1; r <= dataRows && r <= s.Rows.Count; r++)
+        {
+            var row = s.Rows[r - 1];
+            if (row.Height.HasValue || row.Hidden) continue;
+            float need = g.RowH[r];
+            foreach (var cell in row.Cells)
+            {
+                var st = cell.Style;
+                if (st == null || !st.Wrap || st.Rotation != 0) continue;
+                object? val = cell.Formula != null ? cell.Cached : cell.Value;
+                if (cell.Formula != null && val == null && g.Eval.TryEvaluate(cell, out var ev)) val = ev;
+                string text = val is FormulaEvaluator.XlError xe ? xe.Code : NumberFormatter.Format(val, st.Format);
+                if (text.Length == 0) continue;
+                if (_opt.PersianDigits || (s.Page?.PersianDigits ?? false)) text = TextEvaluator.ToPersianDigits(text);
+                int c1 = cell.Col, c2 = cell.Col;
+                if (g.Covered.Contains((r, c1))) continue;
+                if (g.Anchors.TryGetValue((r, c1), out var span)) { if (span[0] != r) continue; c2 = Math.Min(span[1], g.Cols); }
+                float width = 0; for (int c = c1; c <= c2; c++) width += g.ColW[c];
+                float size = (float)(st.Size ?? tpl?.DefaultFontSize ?? 10);
+                var face = _text.Face(st.Font ?? tpl?.DefaultFont, st.Bold, st.Italic, text);
+                using var font = new SKFont(face, size) { Subpixel = true };
+                bool paraRtl = st.Rtl ?? (TextPainter.HasRtl(text) || (s.Rtl && !(val is double || val is DateTime)));
+                int lines = _text.Wrap(text, Math.Max(1, width - 2f - 2f - st.Indent * 6.75f), font, paraRtl).Count;
+                if (lines > 1) need = Math.Max(need, lines * size * 1.2f + 3f);
+            }
+            g.RowH[r] = need;
+        }
     }
 
     static float ColPt(double chars) => (float)Math.Round((chars * 7 + 5) * PxToPt, 2);
@@ -166,25 +207,64 @@ internal sealed class PdfJob : IDisposable
         var titles = new List<int>();
         if (!string.IsNullOrEmpty(s.PrintTitleRows)) { var p = s.PrintTitleRows.Split(':'); int a, b; if (p.Length == 2 && int.TryParse(p[0], out a) && int.TryParse(p[1], out b)) for (int r = a; r <= Math.Min(b, g.Rows); r++) titles.Add(r); }
         float titleH = titles.Sum(r => g.RowH[r]) * scale;
+        // carried-forward totals reserve two extra rows on every page
+        var carryCols = new List<int>(); int[]? carryRun = null;
+        if (!string.IsNullOrWhiteSpace(pg.CarryBand) && !string.IsNullOrWhiteSpace(pg.CarryColumns) && s.BandRuns.TryGetValue(pg.CarryBand!.Trim(), out var br))
+        {
+            foreach (var part in pg.CarryColumns!.Split(',')) { var nm = part.Trim().ToUpperInvariant(); if (nm.Length > 0 && nm.Length <= 3 && nm.All(ch => ch >= 'A' && ch <= 'Z')) { int ci = CellRef.ColIndex(nm); if (ci >= 1 && ci <= g.Cols) carryCols.Add(ci); } }
+            if (carryCols.Count > 0) carryRun = br;
+        }
+        float carryH = (float)s.DefaultRowHeight, reserve = carryRun != null ? 2 * carryH * scale : 0f;
         var rowPages = new List<List<int>>(); var cur = new List<int>(); float used = 0;
         bool first = true;
         for (int r = 1; r <= g.Rows; r++)
         {
             float h = g.RowH[r] * scale;
             if (h == 0) { cur.Add(r); continue; }
-            float limit = ch - (first ? 0 : titleH);
+            float limit = ch - (first ? 0 : titleH) - reserve;
             bool forced = s.RowBreaks != null && s.RowBreaks.Contains(r - 1) && cur.Any(x => g.RowH[x] > 0);
             if (forced || (used + h > limit + 0.01f && cur.Any(x => g.RowH[x] > 0))) { rowPages.Add(cur); cur = new List<int>(); used = 0; first = false; }
             cur.Add(r); used += h;
         }
         if (cur.Count > 0 || rowPages.Count == 0) rowPages.Add(cur);
 
+        // page-by-page sums of the carry columns over the detail band (formula cells such as group subtotals are not counted)
+        var cumBefore = new double[rowPages.Count][]; var cumAfter = new double[rowPages.Count][]; var hasBand = new bool[rowPages.Count];
+        if (carryRun != null)
+        {
+            var running = new double[carryCols.Count];
+            for (int i = 0; i < rowPages.Count; i++)
+            {
+                cumBefore[i] = (double[])running.Clone();
+                foreach (var r in rowPages[i])
+                {
+                    if (r < carryRun[0] || r > carryRun[1] || r > s.Rows.Count) continue;
+                    hasBand[i] = true;
+                    for (int k = 0; k < carryCols.Count; k++)
+                    {
+                        var cell = s.Get(r, carryCols[k]);
+                        if (cell != null && cell.Formula == null && cell.Value is double d) running[k] += d;
+                    }
+                }
+                cumAfter[i] = (double[])running.Clone();
+            }
+        }
+
         foreach (var cp in colPages)
             for (int i = 0; i < rowPages.Count; i++)
             {
                 if (Pages.Count >= _opt.MaxPages) throw new ExcelRenderException("The PDF would exceed " + _opt.MaxPages + " pages. Filter the data or raise PdfOptions.MaxPages.");
-                var rows = (i == 0 ? new List<int>() : titles.Where(t => !rowPages[i].Contains(t)).ToList()).Concat(rowPages[i]).ToList();
-                Pages.Add(new PageSpec { Sheet = si, W = pw, H = ph, Scale = scale, ColFrom = cp.a, ColTo = cp.b, Rows = rows });
+                var lead = i == 0 ? new List<int>() : titles.Where(t => !rowPages[i].Contains(t)).ToList();
+                var rows = lead.Concat(rowPages[i]).ToList();
+                var spec = new PageSpec { Sheet = si, W = pw, H = ph, Scale = scale, ColFrom = cp.a, ColTo = cp.b, Rows = rows, TitleCount = lead.Count };
+                if (carryRun != null && hasBand[i])
+                {
+                    bool before = hasBand.Take(i).Any(x => x), after = hasBand.Skip(i + 1).Any(x => x);
+                    if (before) spec.CarryIn = cumBefore[i];
+                    if (after) spec.CarryOut = cumAfter[i];
+                    spec.CarryCols = carryCols.ToArray(); spec.CarryH = carryH; spec.CarryRun = carryRun;
+                }
+                Pages.Add(spec);
             }
     }
 
@@ -197,6 +277,11 @@ internal sealed class PdfJob : IDisposable
         bool rtl = s.Rtl;
 
         DrawWatermark(canvas, page, string.IsNullOrWhiteSpace(_opt.Watermark) ? pg.Watermark : _opt.Watermark);
+        if (pg.PageFrame)
+        {
+            using var fp = new SKPaint { Color = Color(pg.FrameColor, new SKColor(0xBF, 0xBF, 0xBF)), Style = SKPaintStyle.Stroke, StrokeWidth = 1.4f, IsAntialias = true };
+            canvas.DrawRect(new SKRect(ml - 2, mt - 2, page.W - mr + 2, page.H - (float)pg.MarginBottom * 72 + 2), fp);
+        }
         DrawHeaderFooter(canvas, page, s, pg, ml, mr, mt);
 
         canvas.Save();
@@ -206,7 +291,14 @@ internal sealed class PdfJob : IDisposable
         float blockW = g.ColOff[page.ColTo + 1] - g.ColOff[page.ColFrom];
         float x0 = rtl ? cw / page.Scale - blockW : 0;
         var yOf = new Dictionary<int, float>(); float y = 0;
-        foreach (var r in page.Rows) { yOf[r] = y; y += g.RowH[r]; }
+        float carryInY = -1, carryOutY = -1; int idx = 0;
+        foreach (var r in page.Rows)
+        {
+            if (idx++ == page.TitleCount && page.CarryIn != null) { carryInY = y; y += page.CarryH; }
+            yOf[r] = y; y += g.RowH[r];
+        }
+        if (page.CarryIn != null && carryInY < 0) { carryInY = y; y += page.CarryH; }
+        if (page.CarryOut != null) { carryOutY = y; y += page.CarryH; }
 
         float Left(int c1, int c2)
         {
@@ -233,6 +325,8 @@ internal sealed class PdfJob : IDisposable
                 DrawCell(canvas, g, cell, rect, fill, rtl, r, page, c, c2);
             }
         }
+        if (carryInY >= 0) DrawCarryRow(canvas, g, page, carryInY, pg.CarryLabelIn ?? (rtl ? "انتقال از صفحه قبل" : "Brought forward"), page.CarryIn!, Left, blockW, x0, rtl);
+        if (carryOutY >= 0) DrawCarryRow(canvas, g, page, carryOutY, pg.CarryLabelOut ?? (rtl ? "انتقال به صفحه بعد" : "Carried forward"), page.CarryOut!, Left, blockW, x0, rtl);
         if (_opt.PrintGridLines) DrawGrid(canvas, g, page, yOf, Left);
 
         // images & charts anchored on this page
@@ -253,6 +347,38 @@ internal sealed class PdfJob : IDisposable
         }
         fill.Dispose();
         canvas.Restore();
+    }
+
+    /// <summary>A full-width "brought forward / carried forward" row: label at the start, running totals under the carried columns.</summary>
+    void DrawCarryRow(SKCanvas canvas, SheetGeo g, PageSpec page, float y, string label, double[] values, Func<int, int, float> left, float blockW, float x0, bool rtl)
+    {
+        var rect = new SKRect(x0, y, x0 + blockW, y + page.CarryH);
+        using (var bg = new SKPaint { Color = new SKColor(0xF2, 0xF2, 0xF2), Style = SKPaintStyle.Fill }) canvas.DrawRect(rect, bg);
+        using (var ln = new SKPaint { Color = new SKColor(0x7F, 0x7F, 0x7F), StrokeWidth = 0.6f, Style = SKPaintStyle.Stroke })
+        { canvas.DrawLine(rect.Left, rect.Top, rect.Right, rect.Top, ln); canvas.DrawLine(rect.Left, rect.Bottom, rect.Right, rect.Bottom, ln); }
+
+        float size = (float)(_wb.Template?.DefaultFontSize ?? 10);
+        var face = _text.Face(_wb.Template?.DefaultFont, true, false, label + "0123456789");
+        using var font = new SKFont(face, size) { Subpixel = true };
+        using var paint = new SKPaint { Color = new SKColor(0x26, 0x32, 0x38), IsAntialias = true };
+        var m = font.Metrics; float baseline = y + (page.CarryH - (m.Descent - m.Ascent)) / 2 - m.Ascent;
+        bool lblRtl = TextPainter.HasRtl(label) || rtl;
+        float lw = _text.Measure(label, font, lblRtl);
+        _text.Draw(canvas, label, rtl ? rect.Right - 4 - lw : rect.Left + 4, baseline, font, paint, lblRtl);
+
+        for (int k = 0; k < page.CarryCols.Length; k++)
+        {
+            int c = page.CarryCols[k];
+            if (c < page.ColFrom || c > page.ColTo || g.ColW[c] == 0) continue;
+            string fmt = "#,##0";
+            if (page.CarryRun != null)
+                for (int r = page.CarryRun[0]; r <= page.CarryRun[1] && r <= g.S.Rows.Count; r++)
+                { var cell = g.S.Get(r, c); if (cell?.Style != null && !string.IsNullOrEmpty(cell.Style.Format) && cell.Value is double) { fmt = cell.Style.Format!; break; } }
+            var text = NumberFormatter.Format(values[k], fmt);
+            float w = _text.Measure(text, font, false);
+            float cl = left(c, c), cwid = g.ColOff[c + 1] - g.ColOff[c];
+            _text.Draw(canvas, text, cl + cwid - 2f - w, baseline, font, paint, false);
+        }
     }
 
     static bool DrawBarcode(SKCanvas canvas, RenderedImage im, SKRect box)
@@ -349,6 +475,8 @@ internal sealed class PdfJob : IDisposable
             if (val == null && g.Eval.TryEvaluate(cell, out var ev)) val = ev;
         }
         string text = val is FormulaEvaluator.XlError xe ? xe.Code : NumberFormatter.Format(val, st?.Format);
+        bool persian = _opt.PersianDigits || (g.S.Page?.PersianDigits ?? false);
+        if (persian) text = TextEvaluator.ToPersianDigits(text);
 
         // conditional formatting (same evaluator as the HTML preview)
         CfResult? cf = g.Cf.HasRules ? g.Cf.Evaluate(row, cell.Col, val, text) : null;
@@ -524,6 +652,7 @@ internal sealed class PdfJob : IDisposable
                 }
             }
             Flush();
+            if (_opt.PersianDigits || pg.PersianDigits) { L = TextEvaluator.ToPersianDigits(L); C = TextEvaluator.ToPersianDigits(C); R = TextEvaluator.ToPersianDigits(R); }
             float y = header ? Math.Max(14, mt / 2) : page.H - Math.Max(14, (float)pg.MarginBottom * 72 / 2) + 3;
             foreach (var (t, align) in new[] { (L, "L"), (C, "C"), (R, "R") })
             {

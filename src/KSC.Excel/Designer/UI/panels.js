@@ -513,6 +513,10 @@ function tabBands(body) {
     card.append(el('div', { class: 'frow' }, el('label', {}, T('bandAlt')), el('div', { style: 'display:flex;gap:6px;align-items:center' }, alt, el('button', { class: 'btn', onclick: () => { KXL.mutate(() => { b.alternateFill = undefined; }); renderRight(); } }, '∅'), b.alternateFill ? el('span', { class: 'pill' }, b.alternateFill) : null)));
     card.append(chk(T('bandKeep'), b.keepWhenEmpty, (v) => KXL.mutate(() => { b.keepWhenEmpty = v; })));
     card.append(chk(T('pageBreak'), b.pageBreak, (v) => KXL.mutate(() => { b.pageBreak = v || undefined; })));
+    card.append(frow(T('bandFilter'), inp(b.filter || '', (v) => KXL.mutate(() => { b.filter = v.trim() || undefined; }), { dir: 'ltr', placeholder: "AND(Qty > 10, Status = 'open')" })));
+    card.append(el('div', { class: 'two' }, frow(T('bandTop'), inp(b.top || '', (v) => KXL.mutate(() => { b.top = Math.max(0, parseInt(v) || 0) || undefined; }), { type: 'number', placeholder: '10' })), frow(T('bandTopBy'), inp(b.topBy || '', (v) => KXL.mutate(() => { b.topBy = v.trim() || undefined; }), { dir: 'ltr', placeholder: 'Amount  |  =Sum(Items.Amount)' }))));
+    card.append(chk(T('bandTopAsc'), b.topAscending, (v) => KXL.mutate(() => { b.topAscending = v || undefined; })));
+    card.append(frow(T('bandMinRows'), inp(b.minRows || '', (v) => KXL.mutate(() => { b.minRows = Math.max(0, parseInt(v) || 0) || undefined; }), { type: 'number', placeholder: '25' })));
     body.append(card);
   });
 }
@@ -739,6 +743,10 @@ function tabPage(body) {
   body.append(frow(T('printTitles'), inp(pg.printTitleRows || '', (v) => set('printTitleRows', v || undefined), { dir: 'ltr', placeholder: '1:3' })));
   body.append(frow(T('printArea'), inp(pg.printArea || '', (v) => set('printArea', v || undefined), { dir: 'ltr', placeholder: 'A1:F40' })));
   body.append(frow(T('watermark'), inp(pg.watermark || '', (v) => set('watermark', v || undefined), { placeholder: 'DRAFT' })));
+  body.append(el('div', { class: 'two' }, frow(T('carryBand'), inp(pg.carryBand || '', (v) => set('carryBand', v.trim() || undefined), { dir: 'ltr', placeholder: 'Detail' })), frow(T('carryCols'), inp(pg.carryColumns || '', (v) => set('carryColumns', v.trim().toUpperCase() || undefined), { dir: 'ltr', placeholder: 'D,E' }))));
+  body.append(el('div', { class: 'help' }, T('carryHelp')));
+  body.append(chk(T('persianDigits'), pg.persianDigits, (v) => set('persianDigits', v || undefined)));
+  body.append(chk(T('pageFrame'), pg.pageFrame, (v) => set('pageFrame', v || undefined)));
   body.append(el('div', { class: 'help', dir: 'ltr', style: 'text-align:left' }, '&P page · &N pages · &D date · &T time · &F file · &L &C &R sections'));
 }
 

@@ -126,12 +126,26 @@ namespace KSC.Excel.Services
         /// Publishes a report on the report server: <c>o.AddReport("Invoice", p =&gt; repo.Get((int)p["Id"]))</c>. The stored template of the same
         /// name is used unless <paramref name="template"/> is given. Anyone who can reach the server URL can run it: protect it like any page.
         /// </summary>
-        public KscExcelOptions AddReport(string name, Func<IDictionary<string, object>, object> data, string template = null, string title = null)
+        public KscExcelOptions AddReport(string name, Func<IDictionary<string, object>, object> data, string template = null, string title = null, IEnumerable<string> roles = null, Func<System.Security.Principal.IPrincipal, bool> authorize = null)
         {
             TemplateNames.Ensure(name);
-            Reports[name] = new ReportDef { Name = name, Template = template, Title = title, Data = data };
+            Reports[name] = new ReportDef { Name = name, Template = template, Title = title, Data = data, Roles = roles == null ? null : new List<string>(roles), Authorize = authorize };
             return this;
         }
+
+        /// <summary>
+        /// Like <see cref="AddReport"/>, but the data function receives a <see cref="ReportContext"/> with the user: filter rows per user / branch.
+        /// <c>o.AddContextReport("MyOrders", c =&gt; repo.Orders(c.User.Identity.Name), roles: new[] { "Sales" });</c>
+        /// </summary>
+        public KscExcelOptions AddContextReport(string name, Func<ReportContext, object> data, string template = null, string title = null, IEnumerable<string> roles = null, Func<System.Security.Principal.IPrincipal, bool> authorize = null)
+        {
+            TemplateNames.Ensure(name);
+            Reports[name] = new ReportDef { Name = name, Template = template, Title = title, ContextData = data, Roles = roles == null ? null : new List<string>(roles), Authorize = authorize };
+            return this;
+        }
+
+        /// <summary>Audit trail of report runs, denials and failures (report server and scheduler): <c>o.Audit = new FileReportAudit("logs/reports")</c>.</summary>
+        public IReportAudit Audit { get; set; }
 
         /// <summary>Models whose shape the designer offers as a field tree (and from which sample data is generated).</summary>
         public Dictionary<string, ModelInfo> Models { get; } = new Dictionary<string, ModelInfo>(StringComparer.OrdinalIgnoreCase);

@@ -228,7 +228,7 @@ namespace KSC.Excel.Services
         void RunJob(ReportJob job, DateTime now)
         {
             if (Interlocked.CompareExchange(ref job.Running, 1, 0) != 0) return;      // still running from the previous tick
-            Exception error = null;
+            Exception error = null; var sw = System.Diagnostics.Stopwatch.StartNew(); string paramText = "";
             try
             {
                 var def = _opt.Reports[job.Report];
@@ -236,13 +236,15 @@ namespace KSC.Excel.Services
                 var pars = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
                 if (job.Parameters != null) foreach (var kv in job.Parameters) pars[kv.Key] = kv.Value;
                 if (job.ParameterFactory != null) { var extra = job.ParameterFactory(now); if (extra != null) foreach (var kv in extra) pars[kv.Key] = kv.Value; }
-                var data = def.Data == null ? null : def.Data(pars);
+                paramText = ReportSecurity.Params(pars);
+                var data = def.Load(pars, null);                 // scheduled runs have no user: role rules do not apply, the job itself is the authority
                 var file = _svc.Export(_opt, tpl, data, pars, job.Format);
                 var fileName = ReportExport.FileName(job.Name, file.Extension);
                 foreach (var sink in _sinks) sink.Deliver(job, file, fileName, now);
             }
             catch (Exception ex) { error = ex; }
             finally { Interlocked.Exchange(ref job.Running, 0); }
+            ReportSecurity.Write(_opt, new ReportAuditEntry { Time = DateTime.Now, User = "scheduler", Report = job.Report, Action = "scheduled:" + job.Format.ToString().ToLowerInvariant(), Status = error == null ? ReportAuditStatus.Ok : ReportAuditStatus.Error, Parameters = paramText, DurationMs = sw.ElapsedMilliseconds, Detail = error == null ? job.Name : error.GetType().Name });
             var cb = OnRun;
             if (cb != null) { try { cb(job, error); } catch (Exception) { } }
         }

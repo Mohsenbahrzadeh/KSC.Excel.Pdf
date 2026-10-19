@@ -14,6 +14,9 @@ namespace KSC.Excel.Engine
     /// <summary>
     /// One level of data context. The root scope wraps the data object; every band occurrence creates a child scope.
     /// </summary>
+    /// <summary>Marks a padding row added by BandDef.MinRows.</summary>
+    internal sealed class PadItem { }
+
     public sealed class DataScope
     {
         public object Item;
@@ -215,6 +218,7 @@ namespace KSC.Excel.Engine
             {
                 case "$index": return (double)scope.Index;
                 case "$count": return (double)scope.Count;
+                case "$pad": return scope.Item is PadItem;
                 case "$today": return DateTime.Today;
                 case "$now": return DateTime.Now;
                 case "$root": { var s = scope; while (s.Parent != null) s = s.Parent; return s.Item; }

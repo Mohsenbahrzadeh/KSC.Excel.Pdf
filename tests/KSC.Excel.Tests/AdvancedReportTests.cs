@@ -188,3 +188,99 @@ public class AdvancedReportTests
         Assert.Equal("line", s[1].Type); Assert.True(s[1].Secondary); Assert.Null(s[0].Type);
     }
 }
+
+public class BandFilterTopTests
+{
+    static RenderedWorkbook Bind(Action<BandDef> tweak, string json)
+    {
+        var b = new TemplateBuilder("F");
+        b.Sheet("S", s => { s.Cell("A1", "{{Name}}").Cell("B1", "{{Qty}}"); s.Band("R", "Rows", 1, 1); s.Raw(sh => tweak(sh.Bands[0])); });
+        return new ExcelReportService(new KscExcelOptions(), new MemoryTemplateStore()).Bind(b.Build(), JObject.Parse(json), null);
+    }
+
+    const string Json = "{\"Rows\":[{\"Name\":\"a\",\"Qty\":5,\"St\":\"open\"},{\"Name\":\"b\",\"Qty\":50,\"St\":\"open\"},{\"Name\":\"c\",\"Qty\":500,\"St\":\"closed\"},{\"Name\":\"d\",\"Qty\":20,\"St\":\"open\"},{\"Name\":\"e\",\"Qty\":1,\"St\":\"closed\"}]}";
+
+    static string[] Names(RenderedWorkbook wb) => wb.Sheets[0].Rows.Select(r => (string)r.Cells[0].Value).ToArray();
+
+    [Fact]
+    public void Filter_keeps_only_matching_items()
+    {
+        Assert.Equal(new[] { "b", "c", "d" }, Names(Bind(b => b.Filter = "Qty > 10", Json)));
+        Assert.Equal(new[] { "b", "d" }, Names(Bind(b => b.Filter = "AND(Qty > 10, St = 'open')", Json)));
+        Assert.Empty(Names(Bind(b => b.Filter = "Qty > 9999", Json)));
+    }
+
+    [Fact]
+    public void Top_n_by_a_field_largest_or_smallest_first()
+    {
+        Assert.Equal(new[] { "c", "b" }, Names(Bind(b => { b.Top = 2; b.TopBy = "Qty"; }, Json)));
+        Assert.Equal(new[] { "e", "a" }, Names(Bind(b => { b.Top = 2; b.TopBy = "Qty"; b.TopAscending = true; }, Json)));
+        Assert.Equal(new[] { "a", "b" }, Names(Bind(b => b.Top = 2, Json)));                       // no TopBy: first N in current order
+        Assert.Equal(5, Names(Bind(b => b.Top = 50, Json)).Length);
+    }
+
+    [Fact]
+    public void Filter_then_sort_then_top_and_totals_follow_the_kept_items()
+    {
+        var b = new TemplateBuilder("F");
+        b.Sheet("S", s => { s.Cell("A1", "{{Name}}").Cell("B1", "{{Qty}}"); s.Band("R", "Rows", 1, 1); s.Cell("A2", "sum").Cell("B2", "=SUM([R.Qty])"); s.Raw(sh => { sh.Bands[0].Filter = "St = 'open'"; sh.Bands[0].Top = 2; sh.Bands[0].TopBy = "Qty"; }); });
+        var wb = new ExcelReportService(new KscExcelOptions(), new MemoryTemplateStore()).Bind(b.Build(), JObject.Parse(Json), null);
+        Assert.Equal(new[] { "b", "d", "sum" }, Names(wb));
+        Assert.Equal(70d, wb.Sheets[0].Get(3, 2).Cached);
+    }
+
+    [Fact]
+    public void Top_groups_by_their_total()
+    {
+        var b = new TemplateBuilder("G");
+        b.Sheet("S", s =>
+        {
+            s.Cell("A1", "{{Key}}"); s.Cell("A2", "{{Name}}").Cell("B2", "{{Qty}}");
+            s.Raw(sh => { sh.Bands.Add(new BandDef { Name = "G", Source = "Rows", GroupBy = "St", FirstRow = 1, LastRow = 2, Top = 1, TopBy = "=Sum(Items.Qty)" }); sh.Bands.Add(new BandDef { Name = "D", Source = "Items", FirstRow = 2, LastRow = 2 }); });
+        });
+        var wb = new ExcelReportService(new KscExcelOptions(), new MemoryTemplateStore()).Bind(b.Build(), JObject.Parse(Json), null);
+        Assert.Equal("closed", wb.Sheets[0].Get(1, 1).Value);         // closed: 501 beats open: 75; only the top group is kept
+        Assert.Equal(1, wb.Sheets[0].Rows.Count(r => r.Cells[0].Value is string s && (s == "open" || s == "closed")));
+    }
+}
+
+public class FormFeatureTests
+{
+    static RenderedWorkbook Bind(ExcelTemplate t, string json) => new ExcelReportService(new KscExcelOptions(), new MemoryTemplateStore()).Bind(t, JObject.Parse(json), null);
+
+    [Fact]
+    public void MinRows_pads_with_blank_rows_and_pad_flag_hides_numbers()
+    {
+        var b = new TemplateBuilder("P");
+        b.Sheet("S", s => { s.Cell("A1", "{{IF($pad, '', $index)}}").Cell("B1", "{{Name}}"); s.Band("R", "Rows", 1, 1); s.Raw(sh => sh.Bands[0].MinRows = 5); });
+        var wb = Bind(b.Build(), "{\"Rows\":[{\"Name\":\"a\"},{\"Name\":\"b\"}]}");
+        var rows = wb.Sheets[0].Rows;
+        Assert.Equal(5, rows.Count);
+        Assert.Equal(1d, rows[0].Cells[0].Value); Assert.Equal(2d, rows[1].Cells[0].Value);
+        Assert.True(string.IsNullOrEmpty(Convert.ToString(rows[2].Cells[0].Value))); Assert.Null(rows[4].Cells[1].Value);
+        Assert.Equal(5, Bind(b.Build(), "{\"Rows\":[]}").Sheets[0].Rows.Count);                       // empty data: a whole blank form
+        Assert.Equal(7, Bind(b.Build(), "{\"Rows\":[{},{},{},{},{},{},{}]}").Sheets[0].Rows.Count);   // never cuts real rows
+    }
+
+    [Fact]
+    public void Persian_digits_in_the_html_preview_only_when_asked()
+    {
+        var b = new TemplateBuilder("D");
+        b.Sheet("S", s => { s.Cell("A1", "{{N}}").Cell("B1", "{{D|fa}}"); });
+        var t = b.Build();
+        var html = KSC.Excel.Preview.HtmlPreviewRenderer.Render(Bind(t, "{\"N\":1234,\"D\":\"2025-03-21\"}"));
+        Assert.Contains(">1234<", html);
+        t.Sheets[0].Page.PersianDigits = true;
+        html = KSC.Excel.Preview.HtmlPreviewRenderer.Render(Bind(t, "{\"N\":1234,\"D\":\"2025-03-21\"}"));
+        Assert.Contains(">۱۲۳۴<", html); Assert.Contains("۱۴۰۴/۰۱/۰۱", html);
+    }
+
+    [Fact]
+    public void New_page_properties_roundtrip_in_json()
+    {
+        var jb = new TemplateBuilder("J"); jb.Sheet("S", x => x.Cell("A1", "x")); var t = jb.Build();
+        t.Sheets[0].Page.PersianDigits = true; t.Sheets[0].Page.PageFrame = true; t.Sheets[0].Page.FrameColor = "#112233";
+        var back = ExcelTemplate.FromJson(t.ToJson()).Sheets[0].Page;
+        Assert.True(back.PersianDigits); Assert.True(back.PageFrame); Assert.Equal("#112233", back.FrameColor);
+    }
+}

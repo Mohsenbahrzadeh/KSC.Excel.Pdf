@@ -413,6 +413,10 @@ Report parameters of type **`jdate`** accept Jalali text from the designer defau
 
 In the chart dialog every series has its own **type** (column / line / area) and a **secondary axis** check box: columns for amounts plus a line for a percentage on the right-hand axis. Works in `.xlsx` (verified in Excel: one column series on the primary axis, one line series on the secondary axis) and in PDF. In JSON: `{ "values": "C9:C9", "type": "line", "secondary": true }`. Horizontal bar and pie charts ignore the per-series type.
 
+### 6.11 Filter and Top-N on a band
+
+Band settings (*Bands* tab): **Filter** keeps only the items for which an expression is true (`Qty > 10`, `AND(Qty > 10, Status = 'open')`); **Top** keeps the first N items, ranked by **Rank by** (a path such as `Amount`, or an expression such as `=Sum(Items.Amount)` to rank groups by their total); *Smallest first* gives "bottom N". Order of work: filter → sort → group → rank → Top. Totals and charts see only the kept items. Streaming falls back to the buffered render for such a band. ("Other" rows that aggregate the rest are not built in; add a second band or a calculated total.)
+
 ---
 
 ## 7. Developer guide — .NET 8/10
@@ -596,6 +600,23 @@ builder.Services.AddKscExcelScheduler(s => s
 
 Schedules (server local time): `Daily`, `Weekly(DayOfWeek, time)`, `Monthly(day, time)` (clamped: 31 = last day), **`MonthlyJalali(day, time)`** (Persian calendar), `EveryMinutes(n)`. A job that was missed (server down) runs **once**, never as a burst; a run still in progress is not started twice; failures are reported to `scheduler.OnRun` and never stop other jobs. Sinks: e-mail (SMTP, attachment), folder, or your own `IReportSink`. `RunNow("DailySales")` runs a job on demand. The timer lives inside the application: if the host recycles or sleeps (IIS idle time-out) use a service/Job runner that calls `RunDueJobs()`.
 
+### 7.12 Report access control and audit trail
+
+```csharp
+builder.Services.AddKscExcel(o =>
+{
+    o.AddReport("Finance", p => repo.Finance(p), roles: new[] { "Finance", "Admin" });                         // role rule
+    o.AddReport("Corp", p => repo.Corp(p), authorize: u => u.Identity.Name.EndsWith("@corp.com"));             // custom rule
+    o.AddContextReport("MyOrders", c => repo.Orders(c.User.Identity.Name), roles: new[] { "Sales" });         // row-level: the data function gets the user
+    o.Audit = new FileReportAudit("logs/reports");                                                             // or: new DelegateReportAudit(e => log...)
+});
+```
+
+- The report server answers **401** (not signed in) / **403** (signed in, not allowed) **before** the data function runs; the catalog lists only the reports the user may open. Roles and the custom rule both must pass.
+- **Row-level security:** `AddContextReport` hands your function a `ReportContext` (`Parameters`, `User`) - return only that user's rows. A user can never pick another user's data through a URL parameter because the filter is in your code.
+- **Audit:** every run, denial and failure becomes an entry (time, user, report, action = view/pdf/xlsx/..., status, parameters, duration). `FileReportAudit` writes one JSON line per event into `audit-yyyyMMdd.jsonl`. Parameters named like *password / token / key / secret* are masked (`***`); a failure records only the exception **type**, never its message; a failing audit sink never breaks the report. Scheduled jobs are audited as user `scheduler` and are not subject to role rules (the job definition is the authority).
+- Your own controllers are not covered automatically: use `[Authorize]` there, and call `options.Audit.Log(...)` yourself if you want them in the trail.
+
 ---
 
 ## 8. Developer guide — .NET Framework (MVC 5)
@@ -726,6 +747,24 @@ var pdf = svc.RenderPdf("Invoice", model, null, new PdfOptions
 ```
 
 AES-256 (PDF 2.0 standard security handler). `UserPassword` is needed to open the file; with an empty user password anyone can open it but the denied permissions (`AllowPrint`, `AllowCopy`, `AllowModify`, `AllowAnnotate`) are enforced by compliant readers, and the owner password lifts them. Verified by decrypting with an independent library. Note that permissions are advisory for readers that choose to ignore them; use a user password when confidentiality matters.
+
+### 10.6 Carried-forward page totals
+
+Print panel → **Carried totals**: band name (e.g. `Detail`) and columns (e.g. `D,E`). Every PDF page then ends with a **"Carried forward"** row holding the running total and the next page starts with **"Brought forward"** with the same figures (the number format of the column is used; labels are configurable: `CarryLabelOut`, `CarryLabelIn`). Cells with formulas (group subtotals) are not counted, so grouped reports stay correct. The pages in between reserve two extra rows automatically.
+
+### 10.7 Printed forms: waybills, accounting attachments, daily reports
+
+Fixed-layout paper forms (a company header with a logo, label/value grids, a table that fills the page, signature lines, "page x of y") are ordinary templates; three settings make them look like the printed originals:
+
+| Setting | Where | Effect |
+|---|---|---|
+| **Persian digits** | Print panel → *Persian digits* (`Page.PersianDigits`, or `PdfOptions.PersianDigits`) | every digit in the PDF and the HTML preview shows as ۰-۹ (numbers, dates, `&P &N` page numbers); the `.xlsx` keeps real numbers |
+| **Frame around the page** | Print panel → *Frame around the page* (`PageFrame`, `FrameColor`) | a rectangle around the printable area of every page |
+| **Minimum rows** | Bands tab → *Minimum rows* (`BandDef.MinRows`) | pads the table with blank rows so a form always has e.g. 25 lines; `{{IF($pad, '', $index)}}` hides the numbers of padding rows; real rows are never cut |
+
+Also: rows without a fixed height **grow to fit wrapped text** in the PDF (like Excel's auto-fit); multi-level merged headers, vertical merges, borders, fills and a logo (Images tab) work as in Excel; a table header row is repeated on every following page with *Repeat rows* (`PrintTitleRows`, e.g. `8:8`); put `&Cصفحه &P از &N` in the footer for "page x of y".
+
+Worked examples (in the private KSC repository, `samples/KSC.Excel.Samples.Industrial`): a **waybill** (form with header blocks, a product table with totals and a second table per item from the same data), a multi-page **shipping attachment** (frame, repeated header, 100 rows, total) and a landscape **daily shipment report** (three-level merged header and three small tables). Each is a template in `ExcelTemplates/*.kxl.json` that opens in the designer; the PDF has the same page count as the original forms.
 
 ---
 
@@ -932,7 +971,7 @@ Tests validate the xlsx package structure with `XDocument`; final validity was c
 
 **Not available (by design of the grid engine):** *sub-reports as separate templates* - use nested bands plus several data sets (they cover master/detail/detail); free-positioned report objects outside the cell grid.
 
-**Also done:** CSV/Word/HTML/PNG outputs, report server with parameter forms and drill-down, scheduler + e-mail, template history, combo charts, EAN/Code 39 barcodes, multi-level groups with SUBTOTAL, calculated columns, Jalali calendar functions, PDF password/permissions.
+**Also done:** printed-form support (Persian digits, page frame, minimum rows, auto row height), band Filter/Top-N, report roles + row-level security + audit trail, carried-forward page totals in PDF, CSV/Word/HTML/PNG outputs, report server with parameter forms and drill-down, scheduler + e-mail, template history, combo charts, EAN/Code 39 barcodes, multi-level groups with SUBTOTAL, calculated columns, Jalali calendar functions, PDF password/permissions.
 
 **Next:** OData/GraphQL helpers, chart import, template versioning, NuGet publishing, streaming for totals above the table, combo charts, EAN-13/Code 39/PDF417 barcodes.
 

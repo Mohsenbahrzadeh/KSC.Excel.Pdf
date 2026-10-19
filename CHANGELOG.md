@@ -19,5 +19,7 @@ template JSON compatibility is governed by `schemaVersion`.
 - Outputs: CSV, Word (docx), stand-alone HTML, PNG; `ReportFile` / `Report` one-liners.
 - **Report server** (`AddReport`, `MapKscExcelReports`): parameter forms (text/number/date/jdate/bool/drop-down), HTML/PDF view, downloads, drill-down links (`report:Name?Id={{Id|urlenc}}`).
 - **Scheduler** (`ReportScheduler`): daily/weekly/monthly/Jalali-monthly/every-N-minutes, e-mail (SMTP) and folder delivery.
+- Band **Filter** and **Top-N** (rank items or groups); report **roles / custom authorization**, **row-level security** (`AddContextReport`) and an **audit trail** (`FileReportAudit`); **carried-forward page totals** in PDF.
+- Printed forms: **Persian digits**, **page frame**, band **MinRows** padding (`$pad`), rows that **grow to fit wrapped text** in PDF.
 - Template **history** (restore earlier versions), **combo charts** (column + line, secondary axis), EAN-13 / EAN-8 / Code 39 barcodes.
 - Complete English and Persian guides.
