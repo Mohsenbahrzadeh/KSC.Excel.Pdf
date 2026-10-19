@@ -5,7 +5,7 @@
   <ItemGroup>
     <!-- runtime -->
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageVersion Include="SkiaSharp" Version="3.119.0" />
+    <PackageVersion Include="SkiaSharp" Version="4.153.1" />
     <PackageVersion Include="SkiaSharp.HarfBuzz" Version="3.119.0" />
     <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
     <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
