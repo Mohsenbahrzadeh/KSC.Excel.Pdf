@@ -19,6 +19,15 @@ public static class ExcelPdf
     public static void Render(RenderedWorkbook wb, Stream output, PdfOptions? options = null)
     {
         options ??= new PdfOptions();
+        if (options.Security != null)
+        {
+            // draw normally, then encrypt the finished file
+            using var plain = new MemoryStream();
+            Render(wb, plain, new PdfOptions { FallbackFontFamily = options.FallbackFontFamily, FontFile = options.FontFile, MaxPages = options.MaxPages, Title = options.Title, PrintGridLines = options.PrintGridLines, Watermark = options.Watermark });
+            var enc = PdfEncryptor.Encrypt(plain.ToArray(), options.Security);
+            output.Write(enc, 0, enc.Length);
+            return;
+        }
         using var job = new PdfJob(wb, options);
         var meta = new SKDocumentPdfMetadata { Title = options.Title ?? wb.Template?.Title ?? "Report", Creator = "KSC.Excel", Producer = "KSC.Excel" };
         using var stream = new SKManagedWStream(output);

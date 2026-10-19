@@ -19,4 +19,7 @@ public sealed class PdfOptions
 
     /// <summary>Diagonal text behind every page (overrides the template's own watermark), e.g. "DRAFT".</summary>
     public string? Watermark { get; set; }
+
+    /// <summary>Password protection / permissions (AES-256). Null = an ordinary PDF. Example: <c>new PdfOptions { Security = new PdfSecurity { UserPassword = "1234", AllowCopy = false } }</c>.</summary>
+    public PdfSecurity? Security { get; set; }
 }

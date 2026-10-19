@@ -75,11 +75,17 @@ namespace KSC.Excel.Engine
                         case "number": if (double.TryParse(d.Default, NumberStyles.Float, CultureInfo.InvariantCulture, out n)) v = n; break;
                         case "date": if (DateTime.TryParse(d.Default, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt)) v = dt; break;
                         case "bool": if (bool.TryParse(d.Default, out b)) v = b; break;
+                        case "jdate": if (Jalali.TryParse(d.Default, out dt)) v = dt; break;
                     }
                 }
                 p[d.Name] = v;
             }
             if (given != null) foreach (var kv in given) p[kv.Key] = DataAccess.Normalize(kv.Value);
+            foreach (var d in t.Parameters)   // a Jalali date parameter may be passed as text ("1404/03/15")
+            {
+                object cur; DateTime jd;
+                if (!string.IsNullOrWhiteSpace(d.Name) && string.Equals(d.Type, "jdate", StringComparison.OrdinalIgnoreCase) && p.TryGetValue(d.Name, out cur) && cur is string && Jalali.TryParse((string)cur, out jd)) p[d.Name] = jd;
+            }
             return p;
         }
 
@@ -268,8 +274,8 @@ namespace KSC.Excel.Engine
                 else
                 {
                     var items = DataAccess.Items(raw).ToList();
-                    if (!string.IsNullOrEmpty(b.SortBy)) items = SortItems(items, b.SortBy, b.SortDesc);
-                    if (!string.IsNullOrEmpty(b.GroupBy)) items = GroupItems(items, b.GroupBy);
+                    if (!string.IsNullOrEmpty(b.SortBy)) items = SortItems(items, b.SortBy, b.SortDesc, scope);
+                    if (!string.IsNullOrEmpty(b.GroupBy)) items = GroupItems(items, b.GroupBy, scope);
                     if (items.Count == 0 && b.KeepWhenEmpty) items.Add(null);
                     count = items.Count; seq = items;
                 }
@@ -277,14 +283,25 @@ namespace KSC.Excel.Engine
                 _children.TryGetValue(b, out kids);
 
                 int runFirst = 0, runLast = 0, n = 0;
-                foreach (var it in seq) { n++; EmitOccurrence(b, kids, scope, it, n, count, ref runFirst, ref runLast); }
-                if (lazy && n == 0 && b.KeepWhenEmpty) EmitOccurrence(b, kids, scope, null, 1, 1, ref runFirst, ref runLast);
-                if (runFirst > 0) scope.Runs[b.Name] = new[] { runFirst, runLast };
+                var all = lazy ? null : (IList<object>)seq;
+                foreach (var it in seq) { n++; EmitOccurrence(b, kids, scope, it, n, count, ref runFirst, ref runLast, all); }
+                if (lazy && n == 0 && b.KeepWhenEmpty) EmitOccurrence(b, kids, scope, null, 1, 1, ref runFirst, ref runLast, null);
+                if (runFirst > 0)
+                {
+                    scope.Runs[b.Name] = new[] { runFirst, runLast };
+                    // outer occurrences (and the root) also see the rows of this band: a group total can cover its nested detail rows
+                    for (var up = scope.Parent; up != null; up = up.Parent)
+                    {
+                        int[] cur;
+                        if (up.Runs.TryGetValue(b.Name, out cur)) { cur[0] = Math.Min(cur[0], runFirst); cur[1] = Math.Max(cur[1], runLast); }
+                        else up.Runs[b.Name] = new[] { runFirst, runLast };
+                    }
+                }
             }
 
-            void EmitOccurrence(BandDef b, List<BandDef> kids, DataScope scope, object item, int n, int count, ref int runFirst, ref int runLast)
+            void EmitOccurrence(BandDef b, List<BandDef> kids, DataScope scope, object item, int n, int count, ref int runFirst, ref int runLast, IList<object> all)
             {
-                var child = new DataScope(item, scope) { Index = n, Count = count, Band = b };
+                var child = new DataScope(item, scope) { Index = n, Count = count, Band = b, Siblings = all };
                 if (b.PageBreak && n > 1 && _outRow > 0 && !_out.RowBreaks.Contains(_outRow)) _out.RowBreaks.Add(_outRow);
                 int start = _outRow + 1;
                 EmitRange(b.FirstRow, b.LastRow, kids, child);
@@ -300,20 +317,27 @@ namespace KSC.Excel.Engine
                 return null;
             }
 
-            static List<object> SortItems(List<object> items, string path, bool desc)
+            // a path ("Date") or, when it starts with "=", an expression ("=JYM(Date)", "=IF(Qty>10,'big','small')")
+            object KeyOf(string path, object it, DataScope scope)
             {
-                Func<object, object> key = it => DataAccess.Resolve(new DataScope(it), path);
+                if (path.Length > 1 && path[0] == '=') return _text.Eval("{{" + path.Substring(1) + "}}", new DataScope(it, scope)).Value;
+                return DataAccess.Resolve(new DataScope(it), path);
+            }
+
+            List<object> SortItems(List<object> items, string path, bool desc, DataScope scope)
+            {
+                Func<object, object> key = it => KeyOf(path, it, scope);
                 var q = desc ? items.OrderByDescending(key, SortKeyComparer.Instance) : items.OrderBy(key, SortKeyComparer.Instance);
                 return q.ToList();
             }
 
-            static List<object> GroupItems(List<object> items, string path)
+            List<object> GroupItems(List<object> items, string path, DataScope scope)
             {
                 var order = new List<GroupItem>();
                 var map = new Dictionary<string, GroupItem>(StringComparer.Ordinal);
                 foreach (var it in items)
                 {
-                    var k = DataAccess.Resolve(new DataScope(it), path);
+                    var k = KeyOf(path, it, scope);
                     var ks = TextEvaluator.ToDisplay(k);
                     GroupItem g;
                     if (!map.TryGetValue(ks, out g)) { g = new GroupItem { Key = k }; map[ks] = g; order.Add(g); }

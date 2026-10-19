@@ -373,6 +373,38 @@ A cell starting with `=` is an Excel formula and stays live. Special tokens are 
 - **Link:** Cell panel → link: `https://site/{{Id}}` or `#Sheet2!A1`.
 - **Dynamic image:** data path of the image (`Company.Logo`, `byte[]` or base64).
 
+### 6.9 Advanced reporting: multi-level groups, calculated columns, Jalali calendar
+
+**Multi-level grouping with subtotals.** In the *Bands* tab, *Group wizard* now offers a **second grouping level**, a **grand total row** and group keys written as **expressions**. It builds nested bands (`Groups` → `SubGroups` → `Detail`) with a header and a subtotal row per level. Totals use `SUBTOTAL(9, …)`, exactly like Excel's *Subtotal* command: a total over a range ignores the subtotals inside it, so nested totals never double count (the engine computes the cached values the same way). By hand: put the same formula `=SUBTOTAL(9,[Detail.Amount])` in every subtotal row; a token such as `[Detail.Amount]` now covers **all** detail rows below the current group, including those of nested groups.
+
+**Group / sort by an expression.** `GroupBy` and `SortBy` accept an expression when they start with `=`: `=JYEAR(Date)`, `=JYM(Date)` (Jalali year/month), `=IF(Qty>10,"big","small")`. In the designer type it in the wizard's "or expression" box.
+
+**Calculated columns** (inside `{{ }}`, evaluated per band item over the whole band, or per group inside a group):
+
+| Function | Meaning |
+|---|---|
+| `RUNSUM(Qty)` | running total up to this row |
+| `PCT(Qty)` | share of the band total (0-1; format the cell as `0%`) |
+| `PREV(Qty)` / `DIFF(Qty)` | previous row's value / difference from it |
+| `RANK(Qty)` | rank, 1 = largest |
+| `MOVAVG(Qty, 3)` | moving average of the last 3 rows |
+
+They need the whole collection, so they are not available in streaming mode (the cell is empty there).
+
+**Jalali (Persian) calendar.** Dates stay real Gregorian dates in the file; these helpers do the Jalali part:
+
+| Expression / filter | Result |
+|---|---|
+| `JYEAR(D)` `JMONTH(D)` `JDAY(D)` `JQUARTER(D)` | numbers |
+| `JMONTHNAME(D)`, `{{D\|jmonthname}}` | month name (فروردین …) |
+| `JYM(D)`, `{{D\|jym}}` | `1404/02` text, handy as a group key |
+| `JDAYNAME(D)` | weekday name |
+| `JDATE(1404,1,1)` | Jalali date → real date |
+| `JPARSE('1404/02/10')` | text (Persian digits allowed) → real date |
+| `{{D\|fa}}` | `1404/02/06` text (as before) |
+
+Report parameters of type **`jdate`** accept Jalali text from the designer default or from code: `new Dictionary<string, object> { ["From"] = "1404/01/01" }`; the template sees a real date (`{{$p.From|fa}}`, SQL `@From`).
+
 ---
 
 ## 7. Developer guide — .NET 8/10
@@ -622,6 +654,17 @@ Select a cell, set **Barcode** in the Cell panel (`QR Code`, `QR Code (L)`, `QR 
 - **Watermark** (PDF): Print panel → *Watermark*, or `PdfOptions.Watermark = "DRAFT"` (overrides the template). Diagonal, light grey, on every page, any script.
 - **Page break per item**: Bands panel → *Start each item on a new page* (`BandDef.PageBreak`) - one invoice / one group per page. Written to `.xlsx` as manual page breaks (`rowBreaks`) and honoured by the PDF paginator.
 
+### 10.5 Password protection and permissions
+
+```csharp
+var pdf = svc.RenderPdf("Invoice", model, null, new PdfOptions
+{
+    Security = new PdfSecurity { UserPassword = "1234", OwnerPassword = "boss", AllowCopy = false, AllowModify = false }
+});
+```
+
+AES-256 (PDF 2.0 standard security handler). `UserPassword` is needed to open the file; with an empty user password anyone can open it but the denied permissions (`AllowPrint`, `AllowCopy`, `AllowModify`, `AllowAnnotate`) are enforced by compliant readers, and the owner password lifts them. Verified by decrypting with an independent library. Note that permissions are advisory for readers that choose to ignore them; use a user password when confidentiality matters.
+
 ---
 
 ## 11. Huge reports: streaming
@@ -826,6 +869,8 @@ Tests validate the xlsx package structure with `XDocument`; final validity was c
 8. The designer UI is optimised for desktop (not touch).
 
 **Not available (by design of the grid engine):** *sub-reports as separate templates* - use nested bands plus several data sets (they cover master/detail/detail); free-positioned report objects outside the cell grid.
+
+**Also done:** multi-level groups with SUBTOTAL, calculated columns, Jalali calendar functions, PDF password/permissions.
 
 **Next:** OData/GraphQL helpers, chart import, template versioning, NuGet publishing, streaming for totals above the table, combo charts, EAN-13/Code 39/PDF417 barcodes.
 

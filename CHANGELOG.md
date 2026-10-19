@@ -14,4 +14,6 @@ template JSON compatibility is governed by `schemaVersion`.
 - **Barcodes & QR codes** (QR byte mode v1-10, Code 128) in `.xlsx` and as vector shapes in PDF.
 - Viewers: HTML (`KscExcelViewer`) and **in-page PDF viewer** (`KscPdfViewer` / `Html.KscPdfViewer`).
 - Hosts: ASP.NET Core 8/10, ASP.NET MVC 5 (.NET Framework 4.7.2+/4.8, verified on IIS Express), Windows desktop.
+- Multi-level grouping wizard with `SUBTOTAL` totals, group/sort by expression, calculated columns (`RUNSUM`, `PCT`, `PREV`, `DIFF`, `RANK`, `MOVAVG`), Jalali calendar functions/filters and `jdate` parameters.
+- PDF password protection and permissions (AES-256).
 - Complete English and Persian guides.

@@ -201,6 +201,21 @@ namespace KSC.Excel.Engine
                     if (!TryDate(v, out dt)) return v;
                     return FormatJalali(dt, string.IsNullOrWhiteSpace(arg) ? "yyyy/MM/dd" : arg.Trim());
                 }
+                case "jyear": case "jmonth": case "jday": case "jmonthname": case "jym": case "jdayname": case "jquarter":
+                {
+                    DateTime dt; int jy, jm, jd;
+                    if (!TryDate(v, out dt) || !Jalali.TryParts(dt, out jy, out jm, out jd)) return v;
+                    switch (name.ToLowerInvariant())
+                    {
+                        case "jyear": return (double)jy;
+                        case "jmonth": return (double)jm;
+                        case "jday": return (double)jd;
+                        case "jquarter": return (double)Jalali.Quarter(jm);
+                        case "jym": return jy.ToString("0000") + "/" + jm.ToString("00");
+                        case "jmonthname": return Jalali.MonthName(jm);
+                        default: return Jalali.DayNames[(int)dt.DayOfWeek];
+                    }
+                }
                 case "fadigits": case "fanum":
                     return ToPersianDigits(ToDisplay(v));
                 case "format":

@@ -22,6 +22,8 @@ namespace KSC.Excel.Engine
         public int Index = 1;
         public int Count = 1;
         public Model.BandDef Band;
+        /// <summary>All items of the band this scope belongs to (null while streaming): used by RUNSUM / PCT / PREV / RANK...</summary>
+        public IList<object> Siblings;
         /// <summary>Named virtual members (template DataSets such as pivots), visible from this scope and its children.</summary>
         public Dictionary<string, object> Extras;
         /// <summary>Report parameters (root scope).</summary>

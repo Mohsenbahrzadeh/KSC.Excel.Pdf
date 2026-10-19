@@ -340,6 +340,39 @@ namespace KSC.Excel.Engine
                 case "UPPER": return Str(Scalar(a[0])).ToUpperInvariant();
                 case "LOWER": return Str(Scalar(a[0])).ToLowerInvariant();
                 case "TRIM": return Str(Scalar(a[0])).Trim();
+                case "SUBTOTAL":
+                {
+                    // like Excel: cells that are themselves SUBTOTALs are ignored, so nested group totals never double count
+                    var code = Num(Scalar(a[0])); if (code is XlError) return code;
+                    int fc = (int)(double)code % 100;
+                    var nums = new List<double>(); int cnt = 0;
+                    foreach (var x in a.Skip(1))
+                    {
+                        var r = x as Range;
+                        if (r == null) { var v = Norm(Scalar(x)); if (v is double) nums.Add((double)v); if (v != null) cnt++; continue; }
+                        for (int row = r.R1; row <= r.R2 && row <= _sheet.Rows.Count; row++)
+                            foreach (var c in _sheet.Rows[row - 1].Cells)
+                            {
+                                if (c.Col < r.C1) continue;
+                                if (c.Col > r.C2) break;
+                                if (c.Formula != null && c.Formula.TrimStart().StartsWith("SUBTOTAL(", StringComparison.OrdinalIgnoreCase)) continue;
+                                var v = Norm(CellValue(c));
+                                if (v is XlError) return v;
+                                if (v is double) nums.Add((double)v);
+                                if (v != null && !(v is string s0 && s0.Length == 0)) cnt++;
+                            }
+                    }
+                    switch (fc)
+                    {
+                        case 1: return nums.Count == 0 ? new XlError("#DIV/0!") : (object)nums.Average();
+                        case 2: return (double)nums.Count;
+                        case 3: return (double)cnt;
+                        case 4: return nums.Count == 0 ? 0 : nums.Max();
+                        case 5: return nums.Count == 0 ? 0 : nums.Min();
+                        case 9: return nums.Sum();
+                        default: throw new Unsupported();
+                    }
+                }
                 case "SUMIF": case "COUNTIF": return CondAgg(fn, a);
                 default:
                 {

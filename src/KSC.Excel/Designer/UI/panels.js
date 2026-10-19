@@ -410,7 +410,7 @@ function renderSets(body) {
   t.parameters.forEach((p, i) => {
     const up = (k, v) => KXL.mutate(() => { p[k] = v; });
     body.append(el('div', { class: 'card' }, el('div', { class: 'hd' }, '{{$p.' + p.name + '}}', el('button', { class: 'iconbtn x', onclick: () => { KXL.mutate(() => { t.parameters.splice(i, 1); }); refresh(); } }, '\u2715')),
-      el('div', { class: 'two' }, frow(T('pName'), inp(p.name, (v) => { up('name', v.trim()); refresh(); }, { dir: 'ltr' })), frow(T('pType'), sel([['text', 'text'], ['number', 'number'], ['date', 'date'], ['bool', 'bool']], p.type || 'text', (v) => up('type', v)))),
+      el('div', { class: 'two' }, frow(T('pName'), inp(p.name, (v) => { up('name', v.trim()); refresh(); }, { dir: 'ltr' })), frow(T('pType'), sel([['text', 'text'], ['number', 'number'], ['date', 'date'], ['jdate', 'jdate (1404/03/15)'], ['bool', 'bool']], p.type || 'text', (v) => up('type', v)))),
       el('div', { class: 'two' }, frow(T('pLabel'), inp(p.label || '', (v) => up('label', v))), frow(T('pDefault'), inp(p.default || '', (v) => up('default', v), { dir: 'ltr' })))));
   });
 }
@@ -527,46 +527,72 @@ function groupWizard() {
   if (!paths.length) { KXL.toast(T('gwNeedList'), 'err'); return; }
   const listSel = sel(paths.map(p => [p, p]), paths[0], () => fill());
   const groupSel = el('select', { class: 'rin', style: 'width:100%' });
+  const group2Sel = el('select', { class: 'rin', style: 'width:100%' });
+  const expr1 = el('input', { type: 'text', dir: 'ltr', placeholder: '=JYM(Date)', style: 'width:100%' });
+  const expr2 = el('input', { type: 'text', dir: 'ltr', placeholder: '=JMONTHNAME(Date)', style: 'width:100%' });
+  const grand = el('input', { type: 'checkbox' }); grand.checked = true;
   const fieldsBox = el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:4px 12px' });
   const checks = [];
   function fill() {
     const node = findNode(tree, listSel.value); const leaves = ((node && node.children) || []).filter(f => !f.children || !f.children.length);
-    groupSel.innerHTML = ''; leaves.filter(f => f.type !== 'number').concat(leaves.filter(f => f.type === 'number')).forEach(f => groupSel.append(el('option', { value: f.name }, f.name)));
+    const opts = leaves.filter(f => f.type !== 'number').concat(leaves.filter(f => f.type === 'number'));
+    groupSel.innerHTML = ''; opts.forEach(f => groupSel.append(el('option', { value: f.name }, f.name)));
+    group2Sel.innerHTML = ''; group2Sel.append(el('option', { value: '' }, T('gwNone'))); opts.forEach(f => group2Sel.append(el('option', { value: f.name }, f.name)));
     fieldsBox.innerHTML = ''; checks.length = 0;
     leaves.slice(0, 14).forEach((f, i) => {
       const c = el('input', { type: 'checkbox' }); c.checked = i < 6;
       const t = el('input', { type: 'checkbox', title: T('gwTotals') }); t.checked = f.type === 'number';
       checks.push({ f, c, t });
-      fieldsBox.append(el('label', { class: 'chk', style: 'margin:0' }, c, f.name + ' ', el('span', { class: 'muted' }, f.type === 'number' ? '(' : ''), f.type === 'number' ? t : null, f.type === 'number' ? el('span', { class: 'muted' }, '\u03A3)') : null));
+      fieldsBox.append(el('label', { class: 'chk', style: 'margin:0' }, c, f.name + ' ', el('span', { class: 'muted' }, f.type === 'number' ? '(' : ''), f.type === 'number' ? t : null, f.type === 'number' ? el('span', { class: 'muted' }, 'Σ)') : null));
     });
   }
   fill();
-  const body = el('div', {}, el('div', { class: 'help' }, T('gwHelp')), frow(T('gwList'), listSel), frow(T('gwGroup'), groupSel), el('div', { class: 'lbl2' }, T('gwFields') + ' (\u03A3 = ' + T('gwTotals') + ')'), fieldsBox);
+  const body = el('div', {}, el('div', { class: 'help' }, T('gwHelp')), frow(T('gwList'), listSel),
+    el('div', { class: 'two' }, frow(T('gwGroup'), groupSel), frow(T('gwGroup2'), group2Sel)),
+    el('div', { class: 'two' }, frow(T('gwExpr'), expr1), frow(T('gwExpr') + ' 2', expr2)),
+    el('div', { class: 'help', dir: 'ltr', style: 'text-align:left' }, T('gwExprHelp')),
+    el('label', { class: 'chk' }, grand, T('gwGrand')),
+    el('div', { class: 'lbl2' }, T('gwFields') + ' (Σ = ' + T('gwTotals') + ')'), fieldsBox);
   UI.modal({ title: T('groupWizard'), body, buttons: [{ label: T('add'), primary: true, onclick: () => {
     const picked = checks.filter(x => x.c.checked); if (!picked.length) { KXL.toast(T('gwFields'), 'err'); return false; }
     const sh = KXL.cur(); const r = S.sel.r1, c0 = S.sel.c1; const n = picked.length;
+    const g1 = (expr1.value.trim().startsWith('=') ? expr1.value.trim() : groupSel.value);
+    const g2 = (expr2.value.trim().startsWith('=') ? expr2.value.trim() : group2Sel.value);
+    const two = !!g2, withGrand = grand.checked;
+    // rows: head, L1 header, [L2 header], detail, [L2 subtotal], L1 subtotal, [grand total]
+    const rHead = r, rG1 = r + 1, rG2 = two ? r + 2 : 0, rDet = r + (two ? 3 : 2), rSub2 = two ? r + 4 : 0, rSub1 = r + (two ? 5 : 3), rGrand = withGrand ? rSub1 + 1 : 0;
+    const total = (rGrand || rSub1) - r + 1;
     const border = (col) => ({ style: 'thin', color: col });
     const sHead = { bold: true, color: '#FFFFFF', fill: '#2E75B6', h: 'center', v: 'center', left: border('#1F4E79'), right: border('#1F4E79'), top: border('#1F4E79'), bottom: border('#1F4E79') };
     const sGroup = { bold: true, color: '#1F4E79', fill: '#DDEBF7', v: 'center', bottom: border('#9DC3E6') };
+    const sGroup2 = { bold: true, color: '#2E75B6', fill: '#EEF5FB', v: 'center', indent: 1, bottom: border('#C9DEF2') };
     const sCell = { v: 'center', bottom: border('#D0D7DE') };
     const sNum = Object.assign({}, sCell, { format: '#,##0' });
     const sTot = { bold: true, fill: '#F2F2F2', format: '#,##0', top: border('#7F7F7F'), v: 'center' };
+    const sTot2 = { bold: true, fill: '#F8F8F8', format: '#,##0', top: border('#BFBFBF'), v: 'center', color: '#444444' };
+    const sGrand = { bold: true, color: '#FFFFFF', fill: '#1F4E79', format: '#,##0', v: 'center' };
     KXL.mutate(() => {
-      KXL.structural('r', r, 4);
+      KXL.structural('r', r, total);
       const put = (row, col, v, st) => { KXL.setValue(row, col, v); const x = KXL.ensureCell(row, col); x.s = KXL.styleId(st); };
+      const dname0 = 'Detail';
       picked.forEach((p, i) => {
         const col = c0 + i, isNum = p.f.type === 'number';
-        put(r, col, p.f.name, sHead);
-        put(r + 1, col, i === 0 ? '{{Key}} ({{Count}})' : '', sGroup);
-        put(r + 2, col, '{{' + p.f.name + '}}', isNum ? sNum : sCell);
-        put(r + 3, col, i === 0 ? T('gwTotalLbl') : (isNum && p.t.checked ? '=SUM([Detail.' + p.f.name + '])' : ''), i === 0 ? Object.assign({}, sTot, { format: undefined }) : sTot);
+        const sub = (st) => (isNum && p.t.checked ? '=SUBTOTAL(9,[' + dname0 + '.' + p.f.name + '])' : '');
+        put(rHead, col, p.f.name, sHead);
+        put(rG1, col, i === 0 ? '{{Key}} ({{Count}})' : '', sGroup);
+        if (two) put(rG2, col, i === 0 ? '{{Key}} ({{Count}})' : '', sGroup2);
+        put(rDet, col, '{{' + p.f.name + '}}', isNum ? sNum : sCell);
+        if (two) put(rSub2, col, i === 0 ? T('gwTotalLbl') : sub(), i === 0 ? Object.assign({}, sTot2, { format: undefined, indent: 1 }) : sTot2);
+        put(rSub1, col, i === 0 ? T('gwTotalLbl') : sub(), i === 0 ? Object.assign({}, sTot, { format: undefined }) : sTot);
+        if (rGrand) put(rGrand, col, i === 0 ? T('gwGrandLbl') : sub(), i === 0 ? Object.assign({}, sGrand, { format: undefined }) : sGrand);
         if (!sh._colw.get(col)) sh._colw.set(col, isNum ? 14 : 22);
       });
-      if (n > 1) sh.merges.push(KXL.rangeStr({ r1: r + 1, c1: c0, r2: r + 1, c2: c0 + n - 1 }));
-      const gname = G.uniqueBandName(sh, 'Groups'), dname = G.uniqueBandName(sh, 'Detail');
-      sh.bands.push({ name: gname, source: listSel.value, groupBy: groupSel.value, sortBy: groupSel.value, firstRow: r + 1, lastRow: r + 3 });
-      sh.bands.push({ name: dname, source: 'Items', firstRow: r + 2, lastRow: r + 2, alternateFill: '#F7FAFD' });
-      if (dname !== 'Detail') picked.forEach((p, i) => { const x = KXL.cell(r + 3, c0 + i); if (x && x.v && x.v.includes('[Detail.')) x.v = x.v.replace('[Detail.', '[' + dname + '.'); });
+      if (n > 1) { sh.merges.push(KXL.rangeStr({ r1: rG1, c1: c0, r2: rG1, c2: c0 + n - 1 })); if (two) sh.merges.push(KXL.rangeStr({ r1: rG2, c1: c0, r2: rG2, c2: c0 + n - 1 })); }
+      const gname = G.uniqueBandName(sh, 'Groups'), g2name = two ? G.uniqueBandName(sh, 'SubGroups') : null, dname = G.uniqueBandName(sh, 'Detail');
+      sh.bands.push({ name: gname, source: listSel.value, groupBy: g1, sortBy: g1, firstRow: rG1, lastRow: rSub1 });
+      if (two) sh.bands.push({ name: g2name, source: 'Items', groupBy: g2, sortBy: g2, firstRow: rG2, lastRow: rSub2 });
+      sh.bands.push({ name: dname, source: 'Items', firstRow: rDet, lastRow: rDet, alternateFill: '#F7FAFD' });
+      if (dname !== 'Detail') for (let rr = r; rr < r + total; rr++) picked.forEach((p, i) => { const x = KXL.cell(rr, c0 + i); if (x && x.v && x.v.includes('[Detail.')) x.v = x.v.replace('[Detail.', '[' + dname + '.'); });
     });
     G.render(); S.panelTab = 'bands'; renderRight(); G.select(r, c0);
   } }, { label: T('cancel') }] });

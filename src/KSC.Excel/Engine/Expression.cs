@@ -247,8 +247,67 @@ namespace KSC.Excel.Engine
                     if (v is DateTime) dt = (DateTime)v; else if (!(v is string && DateTime.TryParse((string)v, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))) return null;
                     return TextEvaluator.FormatJalali(dt, a.Count > 1 ? Str(a[1](sc, env)) : "yyyy/MM/dd");
                 }
+                case "JYEAR": case "JMONTH": case "JDAY": case "JQUARTER": case "JYM": case "JMONTHNAME": case "JDAYNAME":
+                {
+                    var v = a[0](sc, env); DateTime dt; int jy, jm, jd;
+                    if (fn == "JMONTHNAME" && Num(v, out x1) && !(v is DateTime) && x1 >= 1 && x1 <= 12) return Jalali.MonthName((int)x1);
+                    if (!AsDate(v, out dt) || !Jalali.TryParts(dt, out jy, out jm, out jd)) return null;
+                    switch (fn)
+                    {
+                        case "JYEAR": return (double)jy;
+                        case "JMONTH": return (double)jm;
+                        case "JDAY": return (double)jd;
+                        case "JQUARTER": return (double)Jalali.Quarter(jm);
+                        case "JYM": return jy.ToString("0000") + "/" + jm.ToString("00");
+                        case "JMONTHNAME": return Jalali.MonthName(jm);
+                        default: return Jalali.DayNames[(int)dt.DayOfWeek];
+                    }
+                }
+                case "JDATE":
+                {
+                    double jy, jm, jd;
+                    if (a.Count < 3 || !Num(a[0](sc, env), out jy) || !Num(a[1](sc, env), out jm) || !Num(a[2](sc, env), out jd)) return null;
+                    var r = Jalali.ToDate((int)jy, (int)jm, (int)jd);
+                    return r.HasValue ? (object)r.Value : null;
+                }
+                case "JPARSE":
+                {
+                    DateTime dt;
+                    return Jalali.TryParse(Str(a[0](sc, env)), out dt) ? (object)dt : null;
+                }
+                case "RUNSUM": case "PCT": case "PREV": case "DIFF": case "RANK": case "MOVAVG":
+                {
+                    var sib = sc.Siblings;
+                    if (sib == null || sib.Count == 0 || a.Count == 0) return null;
+                    int idx = Math.Max(0, Math.Min(sib.Count - 1, sc.Index - 1));
+                    Func<int, object> val = j => a[0](new DataScope(sib[j], sc.Parent) { Index = j + 1, Count = sib.Count, Band = sc.Band, Siblings = sib }, env);
+                    double cur, o;
+                    switch (fn)
+                    {
+                        case "RUNSUM": { double t = 0; for (int j = 0; j <= idx; j++) if (Num(val(j), out o)) t += o; return t; }
+                        case "PCT": { double t = 0; for (int j = 0; j < sib.Count; j++) if (Num(val(j), out o)) t += o; return Num(val(idx), out cur) && t != 0 ? (object)(cur / t) : null; }
+                        case "PREV": return idx == 0 ? null : val(idx - 1);
+                        case "DIFF": { double p; return idx > 0 && Num(val(idx), out cur) && Num(val(idx - 1), out p) ? (object)(cur - p) : null; }
+                        case "RANK": { if (!Num(val(idx), out cur)) return null; int rank = 1; for (int j = 0; j < sib.Count; j++) if (Num(val(j), out o) && o > cur) rank++; return (double)rank; }
+                        default:
+                        {
+                            int n = a.Count > 1 && Num(a[1](sc, env), out x2) ? Math.Max(1, (int)x2) : 3;
+                            double t = 0; int c = 0;
+                            for (int j = Math.Max(0, idx - n + 1); j <= idx; j++) if (Num(val(j), out o)) { t += o; c++; }
+                            return c == 0 ? null : (object)(t / c);
+                        }
+                    }
+                }
                 default: throw new InvalidOperationException("Unknown function '" + fn + "'. Register it with options.AddFunction(...).");
             }
+        }
+
+        static bool AsDate(object v, out DateTime dt)
+        {
+            dt = default(DateTime);
+            if (v is DateTime) { dt = (DateTime)v; return true; }
+            var s = v as string;
+            return s != null && DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt);
         }
 
         static bool Num(object v, out double d)

@@ -135,6 +135,27 @@ public class PdfFeatureTests
     }
 
     [Fact]
+    public void Password_protected_pdf_is_encrypted_and_well_formed()
+    {
+        var wb = Svc().Bind(Simple(), Rows(30), null);
+        var plain = ExcelPdf.Render(wb, new PdfOptions { Title = "SecretTitleXYZ" });
+        var enc = ExcelPdf.Render(wb, new PdfOptions { Title = "SecretTitleXYZ", Security = new PdfSecurity { UserPassword = "open-sesame", OwnerPassword = "boss", AllowCopy = false } });
+        var text = Encoding.GetEncoding("ISO-8859-1").GetString(enc);
+        Assert.StartsWith("%PDF-", text);
+        Assert.Contains("/Encrypt", text); Assert.Contains("/AESV3", text);
+        Assert.DoesNotContain("SecretTitleXYZ", text);
+        Assert.Contains("SecretTitleXYZ", Encoding.GetEncoding("ISO-8859-1").GetString(plain));
+        Assert.EndsWith("%%EOF" + (char)10, text);
+        var dir = Environment.GetEnvironmentVariable("KXL_PDF_PNG_DIR");
+        if (!string.IsNullOrEmpty(dir))
+        {
+            File.WriteAllBytes(Path.Combine(dir, "plain.pdf"), plain);
+            File.WriteAllBytes(Path.Combine(dir, "locked.pdf"), enc);
+            File.WriteAllBytes(Path.Combine(dir, "locked-open.pdf"), ExcelPdf.Render(wb, new PdfOptions { Security = new PdfSecurity { OwnerPassword = "boss", AllowPrint = false, AllowCopy = false } }));
+        }
+    }
+
+    [Fact]
     public void Visual_sample_for_manual_inspection()
     {
         var dir = Environment.GetEnvironmentVariable("KXL_PDF_PNG_DIR");
