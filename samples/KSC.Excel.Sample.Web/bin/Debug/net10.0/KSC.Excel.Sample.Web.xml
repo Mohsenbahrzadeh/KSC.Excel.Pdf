@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KSC.Excel.Sample.Web</name>
+    </assembly>
+    <members>
+        <member name="M:KSC.Excel.Sample.Web.Controllers.HomeController.Viewer">
+            <summary>Show the report inside a page (ViewComponent).</summary>
+        </member>
+        <member name="M:KSC.Excel.Sample.Web.Controllers.HomeController.Download">
+            <summary>Download mode: one line of code, no spreadsheet library.</summary>
+        </member>
+        <member name="M:KSC.Excel.Sample.Web.Controllers.HomeController.PdfViewer">
+            <summary>PDF viewer inside a page (browser PDF reader + Download / Print buttons).</summary>
+        </member>
+        <member name="M:KSC.Excel.Sample.Web.Controllers.HomeController.Pdf(KSC.Excel.Services.IExcelReportService)">
+            <summary>PDF from the same template (Persian shaping + RTL).</summary>
+        </member>
+        <member name="T:Program">
+            <summary>
+            Auto-generated public partial Program class for top-level statement apps.
+            </summary>
+        </member>
+    </members>
+</doc>

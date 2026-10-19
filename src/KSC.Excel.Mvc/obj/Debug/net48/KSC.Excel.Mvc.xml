@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KSC.Excel.Mvc</name>
+    </assembly>
+    <members>
+        <member name="T:KSC.Excel.Mvc.DesignerHandler">
+            <summary>Serves the designer UI + API (System.Web). Register it with <see cref="M:KSC.Excel.Mvc.RouteExtensions.MapKscExcelDesigner(System.Web.Routing.RouteCollection,System.String)"/>.</summary>
+        </member>
+        <member name="T:KSC.Excel.Mvc.ReportsHandler">
+            <summary>Serves the report server (System.Web). Map it with <c>routes.MapKscExcelReports()</c>.</summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.RouteExtensions.MapKscExcelReports(System.Web.Routing.RouteCollection,System.String)">
+            <summary>
+            Maps the report server: <c>/reports</c> (catalog) and <c>/reports/{name}</c> for reports registered with <c>options.AddReport</c>.
+            Restrict access with <c>KscExcel.AuthorizeReports</c> (reports expose your data).
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.RouteExtensions.MapKscExcelDesigner(System.Web.Routing.RouteCollection,System.String)">
+            <summary>
+            Maps the designer, e.g. <c>routes.MapKscExcelDesigner();</c> -&gt; /excel-designer.
+            Call before the default MVC route. Needs <c>&lt;modules runAllManagedModulesForAllRequests="true"/&gt;</c> or the route to be handled by the UrlRoutingModule (default in MVC apps).
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.RouteExtensions.MapKscExcelDownloads(System.Web.Routing.RouteCollection)">
+            <summary>Maps the one-time download links used by <c>Html.KscExcelViewer</c> (required when you use the viewer).</summary>
+        </member>
+        <member name="T:KSC.Excel.Mvc.KscExcel">
+            <summary>
+            Entry point for .NET Framework apps (no DI container required).
+            Call <see cref="M:KSC.Excel.Mvc.KscExcel.Initialize(System.Action{KSC.Excel.Services.KscExcelOptions})"/> once, e.g. in Application_Start.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Mvc.KscExcel.Authorize">
+            <summary>
+            Optional extra authorization for the designer, e.g. <c>ctx =&gt; ctx.User.IsInRole("Admin")</c>.
+            Without it the designer needs an authenticated user (or &lt;compilation debug="true"&gt; / AllowAnonymousDesigner).
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Mvc.KscExcel.AuthorizeReports">
+            <summary>Authorization for the report server (see <c>MapKscExcelReports</c>). Null = anyone who can reach the URL.</summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.KscExcel.StartScheduler(System.Action{KSC.Excel.Services.ReportScheduler})">
+            <summary>
+            Starts the in-process report scheduler (call after <see cref="M:KSC.Excel.Mvc.KscExcel.Initialize(System.Action{KSC.Excel.Services.KscExcelOptions})"/>):
+            <c>KscExcel.StartScheduler(s =&gt; s.UseSmtp(smtp).Add(new ReportJob { ... }))</c>. Reports must be registered with <c>options.AddReport</c>.
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Mvc.ExcelResult">
+            <summary>Action result that sends a rendered template as an .xlsx download.</summary>
+        </member>
+        <member name="T:KSC.Excel.Mvc.PdfResult">
+            <summary>Sends a rendered template as a PDF (download, or shown in the browser when inline). Needs options.UsePdf() from KSC.Excel.Pdf.</summary>
+        </member>
+        <member name="T:KSC.Excel.Mvc.ExcelStreamingResult">
+            <summary>Streams a huge report straight to the response (flat memory). See IExcelReportService.RenderStreaming.</summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.ControllerExtensions.Report(System.Web.Mvc.Controller,System.String,System.Object,KSC.Excel.Services.ReportFormat,System.String,System.Collections.Generic.IDictionary{System.String,System.Object},System.Int32)">
+            <summary><c>return this.Report("Invoice", model, ReportFormat.Docx);</c> - xlsx, pdf, csv, docx, html or png (pdf/png need <c>o.UsePdf()</c>).</summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.ControllerExtensions.GetReportParameters(System.Web.Mvc.Controller,System.String)">
+            <summary>Typed report parameters from the query string (<c>?p_From=2025-01-01</c>) for the template's declared parameters.</summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.ControllerExtensions.Pdf(System.Web.Mvc.Controller,System.String,System.Object,System.String,System.Collections.Generic.IDictionary{System.String,System.Object},System.Boolean)">
+            <summary>One-liner: <c>return this.Pdf("Invoice", model, "invoice.pdf");</c> (needs <c>o.UsePdf()</c> from KSC.Excel.Pdf).</summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.ControllerExtensions.ExcelStreaming(System.Web.Mvc.Controller,System.String,System.Object,System.String,System.Collections.Generic.IDictionary{System.String,System.Object})">
+            <summary>For very large reports: <c>return this.ExcelStreaming("Big", reader, "big.xlsx");</c></summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.ControllerExtensions.Excel(System.Web.Mvc.Controller,System.String,System.Object,System.String)">
+            <summary>One-liner: <c>return this.Excel("Invoice", model, "invoice.xlsx");</c></summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.ControllerExtensions.Excel(System.Web.Mvc.Controller,System.String,System.Object,System.Collections.Generic.IDictionary{System.String,System.Object},System.String)">
+            <summary>Same, passing report parameters ({{$p.Name}} in the template).</summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.HtmlHelperExtensions.KscPdfViewer(System.Web.Mvc.HtmlHelper,System.String,System.Object,System.String,System.Collections.Generic.IDictionary{System.String,System.Object},System.String,System.Boolean,System.Boolean)">
+            <summary>
+            Shows the report as a PDF on the page (browser PDF reader) with Download / Print buttons:
+            <c>@Html.KscPdfViewer("Invoice", Model, "invoice")</c>. Needs <c>o.UsePdf()</c> and <c>routes.MapKscExcelDownloads()</c>.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Mvc.HtmlHelperExtensions.KscExcelViewer(System.Web.Mvc.HtmlHelper,System.String,System.Object,System.String,System.Boolean,System.Boolean,System.String)">
+            <summary>
+            Renders the report on the page (sheet tabs) and a download button:
+            <c>@Html.KscExcelViewer("Invoice", Model, "invoice")</c>
+            </summary>
+        </member>
+    </members>
+</doc>

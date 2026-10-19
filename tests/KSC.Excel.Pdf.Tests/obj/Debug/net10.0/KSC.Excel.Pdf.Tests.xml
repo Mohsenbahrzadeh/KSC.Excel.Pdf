@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KSC.Excel.Pdf.Tests</name>
+    </assembly>
+    <members>
+        <member name="T:KSC.Excel.Pdf.Tests.PdfFeatureTests">
+            <summary>PDF fidelity: conditional formats, text rotation, overflow, barcodes, watermark, page breaks.</summary>
+        </member>
+    </members>
+</doc>

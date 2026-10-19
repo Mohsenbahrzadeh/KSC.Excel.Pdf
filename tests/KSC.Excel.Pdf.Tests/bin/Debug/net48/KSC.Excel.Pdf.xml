@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KSC.Excel.Pdf</name>
+    </assembly>
+    <members>
+        <member name="T:KSC.Excel.Pdf.ChartPainter">
+            <summary>Simple, clean charts (column, bar, line, area, pie) read from the rendered cells the chart refers to.</summary>
+        </member>
+        <member name="M:KSC.Excel.Pdf.ChartPainter.SeriesKind(KSC.Excel.Engine.RenderedChart,System.Int32)">
+            <summary>The drawing kind of series <paramref name="i"/>: its own Type in a combo chart, otherwise the chart's type.</summary>
+        </member>
+        <member name="T:KSC.Excel.Pdf.ExcelPdf">
+            <summary>Renders a bound workbook (template + data) to PDF - same engine as the .xlsx, with Persian/Arabic shaping and RTL layout.</summary>
+        </member>
+        <member name="M:KSC.Excel.Pdf.ExcelPdf.RenderPng(KSC.Excel.Engine.RenderedWorkbook,System.Int32,System.Single,KSC.Excel.Pdf.PdfOptions)">
+            <summary>Renders one page to PNG (visual checks, thumbnails). <paramref name="scale"/> is pixels per point.</summary>
+        </member>
+        <member name="M:KSC.Excel.Pdf.PdfJob.DrawRotated(SkiaSharp.SKCanvas,System.String,SkiaSharp.SKRect,SkiaSharp.SKFont,SkiaSharp.SKPaint,System.Boolean,System.Int32,System.String,System.String)">
+            <summary>Rotated text (Excel semantics: positive = counter-clockwise, 255 = vertical stack), clipped to the cell.</summary>
+        </member>
+        <member name="T:KSC.Excel.Pdf.PdfSecurity">
+            <summary>Password protection and permissions of the generated PDF (AES-256, PDF 2.0 standard security handler, revision 6).</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfSecurity.UserPassword">
+            <summary>Password needed to OPEN the document. Empty = anyone can open it (only the permissions below are enforced).</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfSecurity.OwnerPassword">
+            <summary>Password that lifts the restrictions (required when <see cref="P:KSC.Excel.Pdf.PdfSecurity.UserPassword"/> is empty and any permission is denied). Random when empty.</summary>
+        </member>
+        <member name="T:KSC.Excel.Pdf.PdfEncryptor">
+            <summary>
+            Re-writes a PDF produced by Skia with every string and stream encrypted (AES-256-CBC, ISO 32000-2 algorithm 2.B).
+            Works on the simple structure Skia emits (classic xref table, no object streams); anything else is rejected, never half-encrypted.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Pdf.PdfEncryptor.Hash2B(System.Byte[],System.Byte[],System.Byte[])">
+            <summary>ISO 32000-2 algorithm 2.B (revision 6 hash).</summary>
+        </member>
+        <member name="M:KSC.Excel.Pdf.PdfExtensions.UsePdf(KSC.Excel.Services.KscExcelOptions,KSC.Excel.Pdf.PdfOptions)">
+            <summary>Enables PDF export in the designer (adds a PDF button): <c>AddKscExcel(o =&gt; o.UsePdf())</c>.</summary>
+        </member>
+        <member name="M:KSC.Excel.Pdf.PdfExtensions.RenderPdf(KSC.Excel.Services.IExcelReportService,System.String,System.Object,System.Collections.Generic.IDictionary{System.String,System.Object},KSC.Excel.Pdf.PdfOptions)">
+            <summary>Renders a stored template + data to PDF: <c>return File(svc.RenderPdf("Invoice", model), "application/pdf", "invoice.pdf");</c></summary>
+        </member>
+        <member name="M:KSC.Excel.Pdf.PdfExtensions.RenderPdf(KSC.Excel.Services.IExcelReportService,System.String,System.Object,System.IO.Stream,System.Collections.Generic.IDictionary{System.String,System.Object},KSC.Excel.Pdf.PdfOptions)">
+            <summary>Writes the PDF to a stream.</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfOptions.FallbackFontFamily">
+            <summary>Font tried after the cell's own font when it lacks glyphs (Persian needs Tahoma/Segoe UI/Arial or any Arabic-capable font).</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfOptions.FontFile">
+            <summary>Optional path to a .ttf/.otf with Persian glyphs (e.g. Vazirmatn). Highest priority when it covers the text. Recommended on Linux servers.</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfOptions.MaxPages">
+            <summary>Stop after this many pages (guards against accidental million-row PDFs).</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfOptions.Title">
+            <summary>Document title metadata (defaults to the template title).</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfOptions.PrintGridLines">
+            <summary>Draw light gridlines like the on-screen sheet (Excel prints without them by default).</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfOptions.Watermark">
+            <summary>Diagonal text behind every page (overrides the template's own watermark), e.g. "DRAFT".</summary>
+        </member>
+        <member name="P:KSC.Excel.Pdf.PdfOptions.Security">
+            <summary>Password protection / permissions (AES-256). Null = an ordinary PDF. Example: <c>new PdfOptions { Security = new PdfSecurity { UserPassword = "1234", AllowCopy = false } }</c>.</summary>
+        </member>
+        <member name="T:KSC.Excel.Pdf.TextPainter">
+            <summary>
+            Draws one line of mixed Persian/Latin/digit text correctly: Arabic-script runs are shaped with HarfBuzz (joining forms),
+            Latin runs and digits are drawn left-to-right, and runs are ordered visually for the paragraph direction.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Pdf.TextPainter.Draw(SkiaSharp.SKCanvas,System.String,System.Single,System.Single,SkiaSharp.SKFont,SkiaSharp.SKPaint,System.Boolean)">
+            <summary>Draws the line with its left edge at <paramref name="x"/> (baseline y).</summary>
+        </member>
+    </members>
+</doc>

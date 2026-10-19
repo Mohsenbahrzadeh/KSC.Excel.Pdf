@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KSC.Excel.Tests</name>
+    </assembly>
+    <members>
+        <member name="T:KSC.Excel.Tests.AdvancedReportTests">
+            <summary>Multi-level grouping with subtotals, Jalali calendar, calculated columns.</summary>
+        </member>
+        <member name="T:KSC.Excel.Tests.FeatureTests">
+            <summary>Conditional formats, page breaks, JSON / provider / REST data sets, barcodes and the PDF viewer markup.</summary>
+        </member>
+        <member name="T:KSC.Excel.Tests.OutputTests">
+            <summary>CSV, Word (docx), stand-alone HTML and the unified export API.</summary>
+        </member>
+        <member name="T:KSC.Excel.Tests.Xlsx">
+            <summary>Opens an .xlsx and gives typed access to its parts (and fails on any malformed XML).</summary>
+        </member>
+        <member name="M:KSC.Excel.Tests.Xlsx.Value(System.String,System.Int32)">
+            <summary>Display value of a cell: shared string text, or the raw value.</summary>
+        </member>
+    </members>
+</doc>

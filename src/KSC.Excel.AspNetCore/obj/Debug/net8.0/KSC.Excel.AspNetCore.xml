@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KSC.Excel.AspNetCore</name>
+    </assembly>
+    <members>
+        <member name="M:KSC.Excel.AspNetCore.ControllerExtensions.ExcelFile(Microsoft.AspNetCore.Mvc.ControllerBase,System.String,System.Object,System.String)">
+            <summary>
+            One-liner for controllers: <c>return this.ExcelFile("Invoice", model, "invoice.xlsx");</c>
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.ControllerExtensions.ExcelFile(Microsoft.AspNetCore.Mvc.ControllerBase,System.String,System.Object,System.Collections.Generic.IDictionary{System.String,System.Object},System.String)">
+            <summary>Same, passing report parameters ({{$p.Name}} in the template).</summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.ControllerExtensions.ExcelFileStreaming(Microsoft.AspNetCore.Mvc.ControllerBase,System.String,System.Object,System.String,System.Collections.Generic.IDictionary{System.String,System.Object})">
+            <summary>
+            For very large reports: renders with the streaming writer into a temp file (flat memory) and sends it.
+            Pass lazily enumerated data (IEnumerable / IAsyncEnumerable is not supported / DataReader-backed) to keep memory low end-to-end.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.ControllerExtensions.File(KSC.Excel.Services.IExcelReportService,System.String,System.Object,System.String)">
+            <summary>Minimal-API flavour: <c>app.MapGet("/r", (IExcelReportService x) =&gt; ExcelResults.File(x, "Invoice", data));</c></summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.ControllerExtensions.PdfFile(Microsoft.AspNetCore.Mvc.ControllerBase,System.String,System.Object,System.String,System.Collections.Generic.IDictionary{System.String,System.Object},System.Boolean)">
+            <summary>
+            <c>return this.PdfFile("Invoice", model, "invoice.pdf");</c> - downloads a PDF (pass <paramref name="inline"/> = true to show it in the browser).
+            Requires <c>AddKscExcel(o =&gt; o.UsePdf())</c> from the KSC.Excel.Pdf package.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.ControllerExtensions.Pdf(KSC.Excel.Services.IExcelReportService,KSC.Excel.Services.KscExcelOptions,System.String,System.Object,System.String,System.Collections.Generic.IDictionary{System.String,System.Object})">
+            <summary>Minimal-API flavour: <c>app.MapGet("/r", (IExcelReportService x, KscExcelOptions o) =&gt; x.Pdf(o, "Invoice", data));</c></summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.ControllerExtensions.ReportFile(Microsoft.AspNetCore.Mvc.ControllerBase,System.String,System.Object,KSC.Excel.Services.ReportFormat,System.String,System.Collections.Generic.IDictionary{System.String,System.Object},System.Int32)">
+            <summary>
+            <c>return this.ReportFile("Invoice", model, ReportFormat.Docx);</c> - xlsx, pdf, csv, docx, html or png. Pdf/Png need <c>o.UsePdf()</c>.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.ControllerExtensions.GetReportParameters(Microsoft.AspNetCore.Mvc.ControllerBase,System.String)">
+            <summary>Typed report parameters from the current query string (<c>?p_From=2025-01-01&amp;p_Min=100</c>) for the template's declared parameters.</summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.KscExcelExtensions.AddKscExcel(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.Action{KSC.Excel.Services.KscExcelOptions})">
+            <summary>
+            Registers KSC.Excel: <see cref="T:KSC.Excel.Services.IExcelReportService"/>, the template store (files under
+            <c>{ContentRoot}/ExcelTemplates</c> by default) and the viewer ViewComponent.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.KscExcelExtensions.MapKscExcelDesigner(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder,System.String)">
+            <summary>
+            Maps the visual designer (UI + API) under <paramref name="pattern"/>. Chain <c>.RequireAuthorization(...)</c> to protect it.
+            Outside Development, anonymous users are rejected unless <see cref="P:KSC.Excel.Services.KscExcelOptions.AllowAnonymousDesigner"/> is set.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.KscExcelExtensions.AddKscExcelScheduler(Microsoft.Extensions.DependencyInjection.IServiceCollection,System.Action{KSC.Excel.Services.ReportScheduler})">
+            <summary>
+            Runs scheduled reports inside the application (hosted service): <c>services.AddKscExcelScheduler(s =&gt; s.UseSmtp(smtp).Add(new ReportJob { ... }))</c>.
+            Reports must be registered with <c>options.AddReport</c>. The timer lives as long as the app: use a real job runner if the app can be recycled at night.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.KscExcelExtensions.MapKscExcelReports(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder,System.String)">
+            <summary>
+            Maps the report server: <c>GET /reports</c> (catalog of reports registered with <c>options.AddReport</c>) and
+            <c>GET /reports/{name}</c> (parameter form, HTML/PDF view, <c>?format=pdf|xlsx|docx|csv|html|png</c> downloads).
+            Chain <c>.RequireAuthorization()</c>: reports expose your data.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.KscExcelExtensions.MapKscExcelDownloads(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder)">
+            <summary>Maps the one-time download links created by <c>&lt;vc:ksc-excel-viewer&gt;</c> (required when you use the viewer).</summary>
+        </member>
+        <member name="T:KSC.Excel.AspNetCore.KscExcelViewerViewComponent">
+            <summary>
+            Shows a report on the page (all sheets as tabs) with a download button:
+            <code>@await Component.InvokeAsync("KscExcelViewer", new { template = "Invoice", data = Model, downloadName = "invoice" })</code>
+            or <c>&lt;vc:ksc-excel-viewer template="Invoice" data="Model" /&gt;</c>.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.KscExcelViewerViewComponent.Invoke(System.String,System.Object,System.String,System.Boolean,System.Boolean,System.String,System.Boolean,System.Collections.Generic.IDictionary{System.String,System.Object})">
+            <param name="template">Stored template name.</param>
+            <param name="data">The data to bind (any object, dictionary, JSON, DataTable...).</param>
+            <param name="downloadName">File name for the download button (without extension is fine).</param>
+            <param name="showDownload">Show the download button.</param>
+            <param name="showHeaders">Show Excel-like A,B,C / 1,2,3 headers.</param>
+            <param name="downloadLabel">Button text (default is Persian when the designer language is fa).</param>
+        </member>
+        <member name="T:KSC.Excel.AspNetCore.KscPdfViewerViewComponent">
+            <summary>
+            Shows a report as a PDF on the page (browser PDF reader: pages, zoom, search, print) with Download / Print buttons:
+            <code>@await Component.InvokeAsync("KscPdfViewer", new { template = "Invoice", data = Model, downloadName = "invoice" })</code>
+            Requires <c>o.UsePdf()</c> (KSC.Excel.Pdf) and <c>app.MapKscExcelDownloads()</c>.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.AspNetCore.KscPdfViewerViewComponent.Invoke(System.String,System.Object,System.Collections.Generic.IDictionary{System.String,System.Object},System.String,System.String,System.Boolean,System.Boolean,System.Boolean)">
+            <param name="template">Stored template name.</param>
+            <param name="data">The data to bind.</param>
+            <param name="parameters">Report parameters ({{$p.Name}}).</param>
+            <param name="downloadName">File name for downloads (extension optional).</param>
+            <param name="height">CSS height of the viewer, e.g. "80vh" or "700px".</param>
+            <param name="showToolbar">Show Download / Print buttons.</param>
+            <param name="showExcel">Also offer the same report as an .xlsx download.</param>
+        </member>
+    </members>
+</doc>

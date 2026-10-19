@@ -1,0 +1,1032 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>KSC.Excel</name>
+    </assembly>
+    <members>
+        <member name="T:KSC.Excel.Designer.DesignerRequest">
+            <summary>Framework-neutral request (adapters translate ASP.NET Core / System.Web requests into this).</summary>
+        </member>
+        <member name="P:KSC.Excel.Designer.DesignerRequest.Path">
+            <summary>Path relative to the designer root, starting with "/" (e.g. "/api/templates").</summary>
+        </member>
+        <member name="P:KSC.Excel.Designer.DesignerRequest.BasePath">
+            <summary>Public URL of the designer root without trailing slash (e.g. "/excel-designer").</summary>
+        </member>
+        <member name="T:KSC.Excel.Designer.DesignerHost">
+            <summary>
+            The designer back-end: serves the embedded UI and a small JSON API. Host-neutral on purpose so the same code runs
+            under ASP.NET Core and classic ASP.NET (.NET Framework). Authentication/authorization is the host's job.
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.BarcodeMatrix">
+            <summary>A barcode as a module matrix (true = dark). 1-D codes have a single row.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.BarcodeMatrix.Quiet">
+            <summary>Quiet-zone width in modules that should surround the code.</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.Barcodes">
+            <summary>
+            Dependency-free barcode generation: QR Code (byte mode, versions 1-10, ECC L/M/Q/H) and Code 128 (sets B and C), plus a PNG writer
+            for the .xlsx output. The PDF renderer draws the same matrix as vector rectangles.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.Barcodes.Encode(System.String,System.String)">
+            <summary>Builds the module matrix. "qr" (optionally "qr:L|M|Q|H") or "code128". Throws ArgumentException when the text cannot be encoded.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.Barcodes.ToPng(KSC.Excel.Engine.BarcodeMatrix,System.Int32,System.Int32,System.Int32@,System.Int32@)">
+            <summary>Renders a matrix to a PNG of about <paramref name="maxW"/> x <paramref name="maxH"/> pixels (never larger); returns the actual size.</summary>
+        </member>
+        <member name="P:KSC.Excel.Engine.Barcodes.Code128Patterns">
+            <summary>Exposed for tests: the bar/space width patterns of Code 128 (each 11 modules, the stop 13).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.CellRef">
+            <summary>A1-notation helpers.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.CellRef.TryParseRange(System.String,System.Int32@,System.Int32@,System.Int32@,System.Int32@)">
+            <summary>Parses "A1" or "A1:C5" (rows/cols normalized so r1&lt;=r2, c1&lt;=c2).</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.CellRef.ShiftRows(System.String,System.Int32)">
+            <summary>
+            Shifts the row of every relative A1 reference in a formula by <paramref name="delta"/>
+            (used to rebase conditional-format formulas when bands move rows).
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.CellRef.Shift(System.String,System.Int32,System.Int32)">
+            <summary>Shifts relative row/column references of an A1 formula (absolute parts marked with $ stay).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.ColumnExpander">
+            <summary>
+            Horizontal repeat ("column bands", used for cross-tabs): before rows are rendered the sheet template is expanded so each
+            column band becomes N copies of its columns. Placeholders in the copies are rewritten to index the collection
+            ({{Value}} in copy 2 of band "Cells" becomes {{Cells[1].Value}}), merges/ranges/widths are remapped.
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.CfResult">
+            <summary>What conditional formatting does to one cell.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.CfResult.Style">
+            <summary>Format of a matching cellIs / expression / containsText / duplicates / top10 rule (fill, color, bold, italic...).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.CfResult.ScaleFill">
+            <summary>Background from a color scale (#RRGGBB).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.CfResult.BarFraction">
+            <summary>Data bar: 0..1 of the cell width, and its color.</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.CondFormatEvaluator">
+            <summary>
+            Evaluates a sheet's conditional formats for rendered cells. Shared by the HTML preview and the PDF renderer so both agree
+            (cellIs, expression, containsText, duplicates, top10, colorScale, dataBar).
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.CondFormatEvaluator.Evaluate(System.Int32,System.Int32,System.Object,System.String)">
+            <summary>Returns the effect on the cell at (row, col), or null when no rule applies. <paramref name="text"/> is the displayed text.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.CondFormatEvaluator.Lerp(System.Collections.Generic.List{System.String},System.Double)">
+            <summary>Linear interpolation across 2-3 colors; returns #RRGGBB.</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.DataScope">
+            <summary>
+            One level of data context. The root scope wraps the data object; every band occurrence creates a child scope.
+            </summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.DataScope.Index">
+            <summary>1-based position inside the band.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.DataScope.Siblings">
+            <summary>All items of the band this scope belongs to (null while streaming): used by RUNSUM / PCT / PREV / RANK...</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.DataScope.Extras">
+            <summary>Named virtual members (template DataSets such as pivots), visible from this scope and its children.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.DataScope.Params">
+            <summary>Report parameters (root scope).</summary>
+        </member>
+        <member name="P:KSC.Excel.Engine.DataScope.Runs">
+            <summary>Band name -> first/last output row generated inside this scope.</summary>
+        </member>
+        <member name="P:KSC.Excel.Engine.DataScope.RowOf">
+            <summary>Template row -> output row emitted inside this scope.</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.DataAccess">
+            <summary>Uniform member/collection access over POCOs, dictionaries, JSON, DataTable/DataRow and dynamic objects.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.DataAccess.Normalize(System.Object)">
+            <summary>Converts JSON tokens / enums / DBNull to plain CLR values.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.DataAccess.Items(System.Object)">
+            <summary>Enumerates a collection value (null and scalars give an empty sequence; a JObject is a single item).</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.DataAccess.ItemsLazy(System.Object)">
+            <summary>Like <see cref="M:KSC.Excel.Engine.DataAccess.Items(System.Object)"/> but never materializes a sequence (used by the streaming renderer).</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.DataAccess.Resolve(KSC.Excel.Engine.DataScope,System.String)">
+            <summary>Resolves a dotted path such as "Order.Customer.Name" or "Items[0].Price" starting from a scope.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.DataAccess.TryNumber(System.Object,System.Double@)">
+            <summary>Converts any value to a double when it is numeric (including numeric strings are NOT converted).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.ExprEnv">
+            <summary>Services an expression needs from the renderer (aggregates over collections and custom functions).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.Expr">
+            <summary>
+            Calculated-field expressions inside placeholders: {{Qty * UnitPrice}}, {{IF(Total &gt; 1000, 'VIP', 'Normal')}},
+            {{ROUND(Price * 1.09, 0)}}, {{Tax(Price)}} (custom function). Paths resolve against the current data scope.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.Expr.LooksLikeExpression(System.String)">
+            <summary>True when the placeholder head is more than a plain path / literal (operators, calls, spaces).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.HttpEndpoint">
+            <summary>A REST endpoint a developer allowed templates to read (host and credentials are fixed in code).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.HttpEndpoint.MaxBytes">
+            <summary>Largest response accepted (bytes).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.ExternalData">
+            <summary>Loads data sets of Type "json" (inline JSON or a registered REST endpoint) and "provider" (a registered function).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.FormulaEvaluator">
+            <summary>
+            A small Excel formula evaluator used to store cached values in the file and to show real numbers in the
+            HTML preview. It supports the common subset (see docs); anything else returns "unsupported" and the
+            cell simply has no cached value (Excel recalculates on open anyway).
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.FormulaEvaluator.XlError">
+            <summary>An Excel error value such as #DIV/0!.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.FormulaEvaluator.TryEvaluate(KSC.Excel.Engine.RenderedCell,System.Object@)">
+            <summary>Evaluates a formula cell. Returns false when the formula uses something unsupported; the result may be an <see cref="T:KSC.Excel.Engine.FormulaEvaluator.XlError"/>.</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.Jalali">
+            <summary>Persian (Jalali) calendar helpers used by expressions, filters and parameters. Dates in the file stay Gregorian.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.Jalali.ToDate(System.Int32,System.Int32,System.Int32)">
+            <summary>Jalali year/month/day to a Gregorian date; null when invalid.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.Jalali.TryParse(System.String,System.DateTime@)">
+            <summary>Parses "1404/03/15", "1404-3-5" (also with Persian/Arabic digits); returns false when it is not a valid Jalali date.</summary>
+        </member>
+        <member name="P:KSC.Excel.Engine.PivotRow.Cells">
+            <summary>One cell per <see cref="P:KSC.Excel.Engine.PivotTable.Columns"/> entry, in the same order (Value is null when no data).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.PivotTable">
+            <summary>
+            Cross-tab result: bind <c>Columns</c> to a horizontal (column) band for the header and <c>Rows</c> to a row band whose
+            <c>Cells</c> is a column band. Also available as a template DataSet, so no code is needed.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.Pivot.Build(System.Object,System.String,System.String,System.String,System.String)">
+            <summary>
+            Builds a cross-tab from any collection (POCOs, dictionaries, JSON, DataTable...). Paths are relative to each item.
+            <paramref name="agg"/>: sum, count, avg, min, max. Row/column keys are sorted naturally (numbers, dates, text).
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.RenderedWorkbook">
+            <summary>The result of binding a template to data - what the writers (xlsx / html preview) consume.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedWorkbook.Truncated">
+            <summary>True when the preview limit cut rows (never set by the normal renderer).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedSheet.Rows">
+            <summary>Contiguous rows: Rows[i].Index == i + 1.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedSheet.RowBreaks">
+            <summary>Rows after which a manual page break occurs (1-based, output coordinates).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedCell.Value">
+            <summary>null, string, double, bool or DateTime.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedCell.Formula">
+            <summary>Formula text without the leading "=".</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedCell.Cached">
+            <summary>Value computed by the engine for formula cells (cached value in the file), null if unknown.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedChart.Categories">
+            <summary>Absolute references with sheet name, e.g. 'Sheet'!$B$9:$B$20.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedImage.BarType">
+            <summary>Set for generated barcodes: the PDF renderer redraws them as crisp vector shapes.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderedImage.BarText">
+            <summary>Set for generated barcodes: the PDF renderer redraws them as crisp vector shapes.</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.ExcelRenderException">
+            <summary>Thrown for invalid templates or data that cannot be rendered (e.g. more rows than Excel allows).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.IStreamSink">
+            <summary>Receives sheets/rows as they are produced (streaming output).</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.IStreamSink.BeginSheet(KSC.Excel.Engine.RenderedSheet)">
+            <summary>Sheet metadata (name, columns, view settings) is ready; rows follow.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.IStreamSink.EndSheet(KSC.Excel.Engine.RenderedSheet)">
+            <summary>All rows were delivered; the sheet now also carries merges, conditional formats, images, charts...</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.MaxRows">
+            <summary>Hard cap of generated rows per sheet (Excel allows 1,048,576).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.MaxCells">
+            <summary>Hard cap of generated cells per workbook (guards memory: the whole report is built in memory).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.ComputeFormulaValues">
+            <summary>Compute formula results so viewers that do not recalculate still show numbers.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.Parameters">
+            <summary>Values for {{$p.Name}}; they override the defaults declared in the template.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.ConnectionFactory">
+            <summary>Creates a new connection for a SQL data set connection name (null = SQL data sets unavailable).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.AllowSql">
+            <summary>False = a template with SQL data sets throws. True = allowed.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.SkipSql">
+            <summary>True (designer preview): SQL data sets are skipped with a warning instead of failing, so sample data can be used.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.Preview">
+            <summary>Designer preview: failures of external data sets (REST/provider) become warnings so sample data can be used.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.ReportLinkBase">
+            <summary>Base URL for cell links of the form <c>report:Name?Param=value</c> (null = such links are left as they are).</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.LazySql">
+            <summary>SQL data sets are read lazily (one pass per use) instead of being loaded into memory. Used by streaming.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.Providers">
+            <summary>Named data providers for data sets of Type "provider": parameters in, any data (list, DataTable, JSON...) out.</summary>
+        </member>
+        <member name="F:KSC.Excel.Engine.RenderOptions.Endpoints">
+            <summary>Named REST endpoints for data sets of Type "json".</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.SqlDataSource">
+            <summary>
+            Runs the read-only queries of SQL data sets. Values are always bound as parameters (@Name = report parameter),
+            never concatenated. Defence in depth: single SELECT/WITH statement only; the real protection is a read-only DB login.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.SqlDataSource.Strip(System.String)">
+            <summary>Removes comments and string literals so keywords inside them do not matter.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.SqlDataSource.Validate(System.String)">
+            <summary>Throws <see cref="T:KSC.Excel.Engine.ExcelRenderException"/> unless the text is one read-only SELECT/WITH statement.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.SqlDataSource.QueryLazy(System.Func{System.Data.IDbConnection},System.String,System.Collections.Generic.IDictionary{System.String,System.Object},System.Int32,System.Int32,System.Action{System.String})">
+            <summary>Lazy variant: rows are read while the report is rendered; every enumeration re-runs the query.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.SqlDataSource.TypeName(System.Object)">
+            <summary>Column names and .NET-ish types of the first rows (used by the designer "test query").</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.StreamAnalyzer">
+            <summary>
+            Decides whether a template can be rendered by the streaming writer. Streaming writes each row as soon as it exists, so a
+            row must never depend on data that is produced later in the report.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.StreamAnalyzer.Check(KSC.Excel.Model.ExcelTemplate)">
+            <summary>Returns the reasons a template cannot be streamed (empty = streamable).</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.GroupItem">
+            <summary>Binds an <see cref="T:KSC.Excel.Model.ExcelTemplate"/> to a data object and produces a <see cref="T:KSC.Excel.Engine.RenderedWorkbook"/>.</summary>
+            <summary>One group produced by BandDef.GroupBy.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.TemplateRenderer.RenderStreaming(KSC.Excel.Model.ExcelTemplate,System.Object,KSC.Excel.Engine.IStreamSink)">
+            <summary>Renders while delivering rows to <paramref name="sink"/>; rows are not kept in memory. Check <see cref="T:KSC.Excel.Engine.StreamAnalyzer"/> first.</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.EvalResult">
+            <summary>Result of evaluating a cell text: a typed value when the cell is a single placeholder, text otherwise.</summary>
+        </member>
+        <member name="T:KSC.Excel.Engine.TextEvaluator">
+            <summary>Evaluates "{{path | filter:arg}}" placeholders against a <see cref="T:KSC.Excel.Engine.DataScope"/>.</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.TextEvaluator.EvalText(System.String,KSC.Excel.Engine.DataScope)">
+            <summary>Text-only evaluation (sheet names, hyperlinks...).</summary>
+        </member>
+        <member name="M:KSC.Excel.Engine.TextEvaluator.EvalFormula(System.String,KSC.Excel.Engine.DataScope)">
+            <summary>Replaces placeholders inside a formula with literals (numbers raw, text quoted).</summary>
+        </member>
+        <member name="T:KSC.Excel.Import.XlsxImporter">
+            <summary>
+            Builds a template from an existing .xlsx: sheets, values, formulas, styles (fonts, fills, borders, alignment, number formats,
+            theme colors), merges, column widths, row heights, freeze panes, RTL, conditional formats, validations, hyperlinks,
+            images, page setup. Charts, pivot tables and shared-formula children are not imported (reported as warnings).
+            After importing, replace the cells that should come from data with {{Field}} placeholders in the designer.
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Model.ExcelTemplate">
+            <summary>
+            A complete, serializable Excel template - what the designer edits and what the engine renders.
+            Persisted as plain JSON (see docs/KSC.Excel-Design.md for the schema).
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ExcelTemplate.Name">
+            <summary>Unique key used by the store and by IExcelReportService.Render(name, data).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ExcelTemplate.ModelName">
+            <summary>Optional: name of a model registered with options.AddModel&lt;T&gt;(); drives the field list.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ExcelTemplate.Styles">
+            <summary>Style table: id -> style. Cells reference styles by id.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ExcelTemplate.SampleData">
+            <summary>Sample data used by the designer preview (never used when rendering at runtime).</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.ExcelTemplate.TemplateContractResolver">
+            <summary>
+            Nulls are omitted everywhere. A value-type property is omitted when it equals the type's default only if the
+            class initializer leaves it at that default too (so "ShowGridLines = true" or "Zoom = 100" are always written;
+            omitting a false/0 there would silently change meaning on reload).
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Model.ExcelTemplate.CreateBlank(System.String,System.Boolean)">
+            <summary>A blank template with one empty sheet.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.SheetTemplate.RepeatFor">
+            <summary>Optional path (e.g. "Branches"): the sheet is rendered once per item (name may use {{placeholders}}).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.SheetTemplate.DefaultColWidth">
+            <summary>Default column width in characters.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.SheetTemplate.DefaultRowHeight">
+            <summary>Default row height in points.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.SheetTemplate.Merges">
+            <summary>Merged ranges in A1 notation ("A1:C1").</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.SheetTemplate.Sections">
+            <summary>Report sections (Stimulsoft-style labels over rows): reportHeader, pageHeader, reportFooter.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.SheetTemplate.AutoFilter">
+            <summary>Header row range for AutoFilter, e.g. "A5:F5".</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.SheetTemplate.Protect">
+            <summary>Protect the sheet (no password; stops accidental edits).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ColumnDef.Index">
+            <summary>1-based column index.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.RowDef.Index">
+            <summary>1-based row index.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CellDef.R">
+            <summary>1-based row.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CellDef.C">
+            <summary>1-based column.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CellDef.V">
+            <summary>Text, number, "{{Field}}" placeholder text, or a formula starting with "=".</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CellDef.S">
+            <summary>Style id (key of <see cref="P:KSC.Excel.Model.ExcelTemplate.Styles"/>).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CellDef.T">
+            <summary>Value type hint: null = auto (numbers become numbers), "text" = force text.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CellDef.L">
+            <summary>Hyperlink: URL (may contain placeholders) or "#Sheet!A1" for in-workbook links.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CellDef.Bc">
+            <summary>Barcode: "qr" (or "qr:L|M|Q|H") or "code128". The cell text ({{Field}}) is encoded and drawn as an image that fills the cell.</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.BandDef">
+            <summary>
+            A band repeats a block of template rows for every item of a collection (the detail rows of a report).
+            Bands may be nested: a band fully inside another band's rows is its child and is bound relative to the parent item.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BandDef.Name">
+            <summary>Identifier used inside formulas: =SUM([Items.Price]).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BandDef.Source">
+            <summary>Path of the collection, e.g. "Items" or "Order.Lines".</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BandDef.KeepWhenEmpty">
+            <summary>When the collection is empty: false = the rows vanish, true = keep one blank block.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BandDef.AlternateFill">
+            <summary>Zebra striping: fill color applied to every even occurrence (#RRGGBB).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BandDef.SortBy">
+            <summary>Sort the items before repeating (path relative to the item, e.g. "Date").</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BandDef.GroupBy">
+            <summary>
+            Group the items by this path. Each repeat then represents one group whose fields are
+            Key, Count and Items; put a nested band bound to "Items" inside to list the members,
+            and use =SUM([Inner.Field]) or {{Sum(Items.Field)}} in the group footer row.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BandDef.Orientation">
+            <summary>"rows" (default): repeats rows. "columns": repeats columns (cross-tab) using FirstCol/LastCol.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BandDef.PageBreak">
+            <summary>Start every item (except the first) on a new printed page / PDF page (page per group, one invoice per page...).</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.DataSetDef">
+            <summary>A computed collection available to the template (no code needed), e.g. a cross-tab.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Name">
+            <summary>Name used in templates: {{Matrix.GrandTotal}}, band source "Matrix.Rows".</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Type">
+            <summary>"pivot" (cross-tab of a collection) or "sql" (read-only query).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Source">
+            <summary>Path of the source collection in the data.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Agg">
+            <summary>sum | count | avg | min | max</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Connection">
+            <summary>For Type "sql": name of a connection registered with KscExcelOptions.AddConnection.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Sql">
+            <summary>For Type "sql": one SELECT/WITH statement; @Name binds the report parameter Name.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Json">
+            <summary>
+            For Type "json": inline JSON text (lookup tables, constants) - or leave empty and set <see cref="P:KSC.Excel.Model.DataSetDef.Connection"/> to a
+            REST endpoint registered with KscExcelOptions.AddHttpEndpoint and <see cref="P:KSC.Excel.Model.DataSetDef.Url"/> to the path.
+            For Type "provider": <see cref="P:KSC.Excel.Model.DataSetDef.Connection"/> names a function registered with KscExcelOptions.AddProvider.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Url">
+            <summary>For Type "json" + endpoint: path/query appended to the endpoint's base URL; {Name} is replaced by the report parameter Name (URL-encoded).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.JsonPath">
+            <summary>For Type "json": JSONPath-like selector of the array inside the document (e.g. "data.items"); empty = the document itself.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.DataSetDef.Columns">
+            <summary>Designer metadata: columns discovered by "test query" (used for the field tree).</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.ParameterDef">
+            <summary>A report parameter. Available as {{$p.Name}}; callers pass values, otherwise Default is used.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ParameterDef.Type">
+            <summary>text | number | date | bool</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ParameterDef.Options">
+            <summary>Choices for a drop-down in the parameter form: "A|B|C" or "value:Label|value2:Label2".</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CondFormatDef.Type">
+            <summary>cellIs, expression, containsText, duplicates, top10, colorScale, dataBar.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CondFormatDef.Operator">
+            <summary>For cellIs: equal, notEqual, greaterThan, lessThan, greaterThanOrEqual, lessThanOrEqual, between, notBetween.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CondFormatDef.Style">
+            <summary>Format applied when the rule matches (cellIs/expression/containsText/duplicates/top10).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CondFormatDef.Colors">
+            <summary>colorScale: 2 or 3 colors (#RRGGBB) from low to high.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.CondFormatDef.BarColor">
+            <summary>dataBar color.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ValidationDef.Type">
+            <summary>list, whole, decimal, date, textLength, custom.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ValidationDef.Formula1">
+            <summary>For lists: comma separated literal ("Yes,No") or a range ("=$H$1:$H$5").</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ImageDef.Row">
+            <summary>1-based anchor row/column (top-left corner).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ImageDef.Width">
+            <summary>Size in pixels.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ImageDef.Data">
+            <summary>Static image: base64 (no data: prefix).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ImageDef.Ext">
+            <summary>png, jpeg or gif.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ImageDef.Binding">
+            <summary>Dynamic image: path to a byte[] or base64 string in the data (overrides Data when it resolves).</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.SectionDef">
+            <summary>
+            A labelled block of rows. "pageHeader" rows repeat on every printed page / PDF page (unless PrintTitleRows is set);
+            "reportHeader" and "reportFooter" are visual labels in the designer (the rows are rendered once, normally).
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Model.SectionDef.Kind">
+            <summary>reportHeader | pageHeader | reportFooter</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartSeriesDef.Name">
+            <summary>Literal series name (or leave empty and use NameCell).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartSeriesDef.NameCell">
+            <summary>Optional cell holding the series name, e.g. "D8".</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartSeriesDef.Values">
+            <summary>Values range in template coordinates, e.g. "D9:D9" (a range covering a band expands to all its rows).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartSeriesDef.Color">
+            <summary>#RRGGBB (optional).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartSeriesDef.Type">
+            <summary>Combo charts: column, line or area for this series (empty = the chart's type). Ignored for pie and bar (horizontal) charts.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartSeriesDef.Secondary">
+            <summary>Plot this series against a second value axis on the right (e.g. a % line over amount columns).</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.ChartDef">
+            <summary>A chart bound to cell ranges. Ranges that cover a band grow with the data.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartDef.Type">
+            <summary>column, bar, line, area or pie.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartDef.Row">
+            <summary>1-based anchor cell (top-left) and size in pixels.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.ChartDef.Categories">
+            <summary>Category labels range, e.g. "B9:B9".</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.PageSetupDef.Orientation">
+            <summary>portrait | landscape</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.PageSetupDef.PaperSize">
+            <summary>Excel paper size: 9 = A4, 8 = A3, 1 = Letter, 5 = Legal.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.PageSetupDef.FitToWidth">
+            <summary>Fit all columns on one page wide (height unlimited).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.PageSetupDef.MarginTop">
+            <summary>Margins in inches.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.PageSetupDef.Header">
+            <summary>Excel header/footer codes allowed: &amp;P page, &amp;N pages, &amp;D date, &amp;L/&amp;C/&amp;R sections.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.PageSetupDef.PrintTitleRows">
+            <summary>Rows repeated on every printed page, e.g. "1:3".</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.PageSetupDef.Watermark">
+            <summary>PDF only: diagonal text drawn behind every page (e.g. "DRAFT", "محرمانه").</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.BorderDef">
+            <summary>One side of a cell border.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BorderDef.Style">
+            <summary>thin, medium, thick, dashed, dotted, double, hair.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.BorderDef.Color">
+            <summary>#RRGGBB</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.StyleDef">
+            <summary>
+            A flat, designer-friendly cell style. Every property is optional: null/false means "inherit the default".
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Model.StyleDef.Color">
+            <summary>Font color, #RRGGBB.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.StyleDef.Fill">
+            <summary>Background color, #RRGGBB.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.StyleDef.H">
+            <summary>left, center, right, justify, fill, distributed (null = general).</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.StyleDef.V">
+            <summary>top, center, bottom.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.StyleDef.Rotation">
+            <summary>Text rotation in degrees (-90..90) or 255 for vertical text.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.StyleDef.Format">
+            <summary>Excel number format, e.g. #,##0 or yyyy/mm/dd.</summary>
+        </member>
+        <member name="P:KSC.Excel.Model.StyleDef.Rtl">
+            <summary>Reading order: true = right-to-left, false = left-to-right, null = context.</summary>
+        </member>
+        <member name="M:KSC.Excel.Model.StyleDef.Key">
+            <summary>Canonical identity used to de-duplicate styles.</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.TemplateBuilder">
+            <summary>
+            Code-first alternative to the visual designer (handy for tests and for seeding default templates).
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Model.TemplateBuilder.Style(System.String,KSC.Excel.Model.StyleDef)">
+            <summary>Registers a style under an id and returns the id for use in Cell(...).</summary>
+        </member>
+        <member name="M:KSC.Excel.Model.SheetBuilder.StyleRange(System.String,System.String)">
+            <summary>Applies a style to every cell of a range (creating empty cells as needed).</summary>
+        </member>
+        <member name="T:KSC.Excel.Model.StarterTemplates">
+            <summary>Ready-made starting points offered by the designer ("New from sample").</summary>
+        </member>
+        <member name="M:KSC.Excel.Model.StarterTemplates.SimpleTable">
+            <summary>Title, header row, repeating detail band and a totals row.</summary>
+        </member>
+        <member name="M:KSC.Excel.Model.StarterTemplates.Invoice">
+            <summary>A formal invoice: header block, line items with formulas, totals.</summary>
+        </member>
+        <member name="F:KSC.Excel.Preview.PreviewOptions.MaxRows">
+            <summary>Rows shown per sheet (preview only); the download is never truncated.</summary>
+        </member>
+        <member name="F:KSC.Excel.Preview.PreviewOptions.ShowHeaders">
+            <summary>Show A,B,C... / 1,2,3... headers like Excel.</summary>
+        </member>
+        <member name="F:KSC.Excel.Preview.PreviewOptions.IncludeCss">
+            <summary>Emit the stylesheet with the markup (set false when the page already includes it).</summary>
+        </member>
+        <member name="T:KSC.Excel.Preview.HtmlPreviewRenderer">
+            <summary>Renders a <see cref="T:KSC.Excel.Engine.RenderedWorkbook"/> to HTML (sheet tabs, merged cells, styles, conditional formats).</summary>
+        </member>
+        <member name="T:KSC.Excel.Preview.NumberFormatter">
+            <summary>A pragmatic subset of Excel number formats, enough to show values in the HTML preview.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.DownloadStore">
+            <summary>Holds rendered files for short-lived, unguessable download links (bound to the signed-in user, if any).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.DownloadStore.Item.ContentType">
+            <summary>MIME type sent to the browser (default: xlsx).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.DownloadStore.Item.Inline">
+            <summary>True = shown in the browser (inline PDF viewer), false = download.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.DownloadStore.Take(System.String,System.String)">
+            <summary>Returns the file when the token is valid and belongs to <paramref name="user"/>; links stay valid until they expire (re-downloads work).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.IExcelReportService">
+            <summary>The only API most developers need: template name + data in, .xlsx bytes out.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.IExcelReportService.Render(System.String,System.Object)">
+            <summary>Renders a stored template with the given data and returns the .xlsx file.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.IExcelReportService.Render(System.String,System.Object,System.Collections.Generic.IDictionary{System.String,System.Object})">
+            <summary>Same, with report parameters available as {{$p.Name}}.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.IExcelReportService.BindPreview(KSC.Excel.Model.ExcelTemplate,System.Object,System.Collections.Generic.IDictionary{System.String,System.Object})">
+            <summary>For the designer: like Bind, but SQL data sets are skipped (with a warning) when SQL is not allowed.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.IExcelReportService.RenderHtml(System.String,System.Object,System.Boolean)">
+            <summary>Renders the same report as an HTML table with sheet tabs (for on-screen viewing).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.IExcelReportService.Bind(KSC.Excel.Model.ExcelTemplate,System.Object)">
+            <summary>Binds data without writing a file (warnings, diagnostics).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.IExcelReportService.RenderStreaming(KSC.Excel.Model.ExcelTemplate,System.Object,System.IO.Stream,System.Collections.Generic.IDictionary{System.String,System.Object})">
+            <summary>
+            Writes the .xlsx while the report is produced, so memory stays flat even for millions of rows (rows are not kept).
+            Returns true when streamed; false when the template cannot be streamed (see <see cref="M:KSC.Excel.Engine.StreamAnalyzer.Check(KSC.Excel.Model.ExcelTemplate)"/>), in which case
+            the normal buffered render was used. Streamed files have no cached formula values (Excel calculates on open).
+            An exception while streaming leaves a partial file in <paramref name="output"/>: write to a temp file or a buffer you can discard.
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Services.FieldNode">
+            <summary>A node of the field tree the designer shows (text / number / date / bool / object / list).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ModelInfo">
+            <summary>Shape + sample data of a data model that templates can be bound to.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ModelInfo.Infer(Newtonsoft.Json.Linq.JToken)">
+            <summary>Infers a field tree from sample JSON (used for models registered from JSON).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.KscExcelOptions">
+            <summary>Configuration shared by the ASP.NET Core and .NET Framework hosts.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.TemplateDirectory">
+            <summary>Where templates live when no custom store is given. Relative paths are resolved by the host (content root / app base).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.Store">
+            <summary>Custom template storage (database, blob...). Defaults to <see cref="T:KSC.Excel.Services.FileTemplateStore"/>.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.DesignerTitle">
+            <summary>Designer title shown in the header.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.Language">
+            <summary>fa (Persian, RTL) or en. Persian is the default.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.AllowAnonymousDesigner">
+            <summary>
+            Hosts allow anonymous access to the designer only in Development unless this is true.
+            The designer can read/write templates, so keep it behind your login in production.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.DownloadPath">
+            <summary>URL prefix of the one-time download links created by the viewer component.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.ReadOnlyDesigner">
+            <summary>When true the designer can open/preview/download but cannot save or delete templates.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.MaxRows">
+            <summary>Maximum rows an exported sheet may have (guards memory). Default: Excel's limit.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.MaxCells">
+            <summary>Maximum generated cells per sheet (the report is built in memory). Default 3,000,000.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.PreviewMaxRows">
+            <summary>Rows shown by HTML previews and the viewer component.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.AllowSql">
+            <summary>
+            Allow templates to run their SQL data sets (read-only SELECT/WITH). Off by default: anyone who can save templates
+            could otherwise query the connections you register. Use a read-only database login.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Services.KscExcelOptions.AddConnection(System.String,System.Func{System.Data.IDbConnection})">
+            <summary>Registers a named connection for SQL data sets (also sets nothing else: remember to enable AllowSql).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.KscExcelOptions.AddConnection(System.String,System.Data.Common.DbProviderFactory,System.String)">
+            <summary>e.g. AddConnection("Sales", SqlClientFactory.Instance, connectionString).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.KscExcelOptions.AddProvider(System.String,System.Func{System.Collections.Generic.IDictionary{System.String,System.Object},System.Object})">
+            <summary>
+            Registers a named data provider usable by templates (data set Type "provider"): your code returns the data
+            (EF query, Dapper, DataTable, JSON, any list) from the report parameters.
+            <code>o.AddProvider("Orders", p =&gt; db.Orders.Where(x =&gt; x.Year == (int)p["Year"]).ToList());</code>
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Services.KscExcelOptions.AddHttpEndpoint(System.String,System.String,System.Collections.Generic.IDictionary{System.String,System.String},System.Int32)">
+            <summary>
+            Registers a REST/JSON endpoint (data set Type "json"). Templates give only a relative path; the host is fixed here
+            (no SSRF from templates). <paramref name="headers"/> may carry an API key.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.Filters">
+            <summary>Custom placeholder filter: {{Price|tax:9}} -> AddFilter("tax", (value, arg) =&gt; ...).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.Functions">
+            <summary>Custom function usable in placeholder expressions ({{Tax(Price)}}) and, for cached values, in Excel formulas (=TAX(B2)).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.PdfExporter">
+            <summary>
+            Turns a bound workbook into a PDF. Set by the KSC.Excel.Pdf package (<c>options.UsePdf()</c>); when set, the designer shows a PDF button.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.PngExporter">
+            <summary>Renders one page of a bound workbook as PNG (page number is 1-based). Set by <c>options.UsePdf()</c>.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.ReportsPath">
+            <summary>URL prefix used for drill-down links (<c>report:Name?Id={{Id|urlenc}}</c>) and by the report server. Default "/reports".</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.OnReportError">
+            <summary>Called when a report of the report server fails unexpectedly (log it; the browser only sees a generic message).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.KscExcelOptions.AddReport(System.String,System.Func{System.Collections.Generic.IDictionary{System.String,System.Object},System.Object},System.String,System.String)">
+            <summary>
+            Publishes a report on the report server: <c>o.AddReport("Invoice", p =&gt; repo.Get((int)p["Id"]))</c>. The stored template of the same
+            name is used unless <paramref name="template"/> is given. Anyone who can reach the server URL can run it: protect it like any page.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Services.KscExcelOptions.Models">
+            <summary>Models whose shape the designer offers as a field tree (and from which sample data is generated).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.KscExcelOptions.AddModel``1(System.String)">
+            <summary>
+            Registers a data model: the designer shows its fields (drag &amp; drop) and generates sample data for the preview.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Services.KscExcelOptions.AddModelFromJson(System.String,System.String)">
+            <summary>Registers a model described only by sample JSON (the fields are inferred from it).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportFormat">
+            <summary>Output formats of a rendered report.</summary>
+        </member>
+        <member name="F:KSC.Excel.Services.ReportFormat.Pdf">
+            <summary>Needs the KSC.Excel.Pdf package (<c>options.UsePdf()</c>).</summary>
+        </member>
+        <member name="F:KSC.Excel.Services.ReportFormat.Csv">
+            <summary>One sheet as CSV (UTF-8 with BOM).</summary>
+        </member>
+        <member name="F:KSC.Excel.Services.ReportFormat.Docx">
+            <summary>Word document: one table per sheet.</summary>
+        </member>
+        <member name="F:KSC.Excel.Services.ReportFormat.Html">
+            <summary>A stand-alone HTML page (all sheets, tabs).</summary>
+        </member>
+        <member name="F:KSC.Excel.Services.ReportFormat.Png">
+            <summary>One page as PNG image (needs the KSC.Excel.Pdf package).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportFile">
+            <summary>A rendered report file ready to send.</summary>
+        </member>
+        <member name="F:KSC.Excel.Services.ReportFile.Extension">
+            <summary>File extension without the dot (xlsx, pdf, csv, docx, html, png).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportExport.Export(KSC.Excel.Services.IExcelReportService,KSC.Excel.Services.KscExcelOptions,System.String,System.Object,System.Collections.Generic.IDictionary{System.String,System.Object},KSC.Excel.Services.ReportFormat,System.Int32)">
+            <summary>
+            Renders a stored template in any format. <paramref name="page"/> is the 1-based page (png) or sheet (csv).
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportExport.HtmlDocument(KSC.Excel.Engine.RenderedWorkbook,KSC.Excel.Services.KscExcelOptions)">
+            <summary>A complete HTML page (UTF-8, direction from the first sheet) containing the report.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportExport.FileName(System.String,System.String)">
+            <summary>Safe file name for downloads: letters, digits and a few separators; Persian letters are kept.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportDef">
+            <summary>A report published by the report server: a stored template plus the code that supplies its data.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportDef.Name">
+            <summary>Public name (URL segment). Letters, digits, space, _ - .</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportDef.Template">
+            <summary>Stored template to render (defaults to <see cref="P:KSC.Excel.Services.ReportDef.Name"/>).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportDef.Data">
+            <summary>Returns the data for the report parameters (any object / list / DataTable / JSON). May return null when the template reads its own data sets.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportRequest">
+            <summary>Framework-neutral request of the report server.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportRequest.Name">
+            <summary>Report name, or null for the catalog.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportRequest.Query">
+            <summary>Raw query-string values (names case-insensitive).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportRequest.BasePath">
+            <summary>Public URL of the report server root without trailing slash, e.g. "/reports".</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportParameters">
+            <summary>Turns query-string values into typed report parameters.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportParameters.FromQuery(KSC.Excel.Model.ExcelTemplate,System.Collections.Generic.IDictionary{System.String,System.String})">
+            <summary>Reads <c>p_Name</c> values for every parameter of the template. Missing or empty values keep the template default.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportParameters.QueryString(System.Collections.Generic.IDictionary{System.String,System.String},System.String[])">
+            <summary>Only the <c>p_*</c> pairs of a query, re-encoded for links.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportLinks">
+            <summary>Rewrites <c>report:Name?Param={{Id|urlenc}}</c> cell links into report-server URLs (drill-down).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportServer">
+            <summary>
+            A small report server: <c>/reports</c> lists the reports you registered with <c>options.AddReport(...)</c>;
+            <c>/reports/{name}</c> shows one with a parameter form and download buttons; <c>?format=pdf|xlsx|docx|csv|html|png</c> returns a file.
+            Host-neutral (ASP.NET Core and System.Web adapters call <see cref="M:KSC.Excel.Services.ReportServer.Handle(KSC.Excel.Services.ReportRequest)"/>). Authorization is the host's job.
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportSchedule">
+            <summary>When a scheduled report runs (server local time).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportSchedule.Monthly(System.Int32,System.TimeSpan)">
+            <summary>Every month on this Gregorian day (clamped to the month length, so 31 means "last day" in short months).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportSchedule.MonthlyJalali(System.Int32,System.TimeSpan)">
+            <summary>Every month on this Persian (Jalali) day (clamped to the month length: 31 = last day of the month).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportSchedule.EveryMinutes(System.Int32)">
+            <summary>Every N minutes from the moment the scheduler starts (or the job is added).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportSchedule.NextAfter(System.DateTime)">
+            <summary>The first run time strictly after <paramref name="after"/>.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportJob">
+            <summary>A report to produce on a schedule and hand to one or more <see cref="T:KSC.Excel.Services.IReportSink"/>s.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportJob.Report">
+            <summary>Name of a report registered with <c>options.AddReport</c>.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportJob.Parameters">
+            <summary>Fixed report parameters.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportJob.ParameterFactory">
+            <summary>Computes parameters at run time (e.g. "yesterday"); merged over <see cref="P:KSC.Excel.Services.ReportJob.Parameters"/>.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportJob.To">
+            <summary>E-mail recipients (needs <see cref="T:KSC.Excel.Services.SmtpReportSink"/>).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportJob.SaveToFolder">
+            <summary>Also save the file here (needs <see cref="T:KSC.Excel.Services.FolderReportSink"/>).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.IReportSink">
+            <summary>Receives every produced file of a job.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.FolderReportSink">
+            <summary>Writes files into <see cref="P:KSC.Excel.Services.ReportJob.SaveToFolder"/> (name + time stamp).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.SmtpReportSink">
+            <summary>Sends the file as an e-mail attachment to <see cref="P:KSC.Excel.Services.ReportJob.To"/> through SMTP.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ReportScheduler">
+            <summary>
+            Produces registered reports on a schedule (daily / weekly / monthly / Jalali monthly / every N minutes) and delivers them
+            by e-mail and/or to a folder. In-process timer: it runs while your application runs.
+            </summary>
+        </member>
+        <member name="P:KSC.Excel.Services.ReportScheduler.OnRun">
+            <summary>Called after every run: <c>(job, error)</c>; error is null on success. Use it for logging.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportScheduler.UseSmtp(KSC.Excel.Services.SmtpOptions)">
+            <summary>Convenience: e-mail through SMTP.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportScheduler.RunDueJobs">
+            <summary>Runs every job whose time has come (called by the timer; public so you can drive it yourself or test it). Returns the jobs started.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ReportScheduler.RunNow(System.String)">
+            <summary>Runs one job immediately (ignores the schedule).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ITemplateStore">
+            <summary>Where templates are stored. Implement it to keep templates in a database or blob storage.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ITemplateStore.Get(System.String)">
+            <summary>Returns null when the template does not exist.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.TemplateVersionInfo">
+            <summary>One saved version of a template (the state BEFORE a later save replaced it).</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.TemplateVersionInfo.Id">
+            <summary>Opaque id (a UTC time stamp); pass it to <see cref="M:KSC.Excel.Services.IVersionedTemplateStore.GetVersion(System.String,System.String)"/>.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.IVersionedTemplateStore">
+            <summary>Optional capability of a store: keeps earlier versions so a template can be compared and restored.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.IVersionedTemplateStore.ListVersions(System.String)">
+            <summary>Newest first.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.IVersionedTemplateStore.GetVersion(System.String,System.String)">
+            <summary>Returns null when the version does not exist.</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.TemplateNames.IsValid(System.String)">
+            <summary>Letters (any language), digits, space, _ - . ; must start with a letter/digit; max 99 chars. Blocks path traversal.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.FileTemplateStore">
+            <summary>Stores each template as {name}.kxl.json in a folder.</summary>
+        </member>
+        <member name="P:KSC.Excel.Services.FileTemplateStore.MaxVersions">
+            <summary>How many earlier versions are kept per template (oldest are deleted). Set 0 to disable history.</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.MemoryTemplateStore">
+            <summary>In-memory store (tests, demos).</summary>
+        </member>
+        <member name="T:KSC.Excel.Services.ViewerMarkup">
+            <summary>Markup shared by the ASP.NET Core ViewComponents and the MVC 5 HTML helpers (one place, identical output).</summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ViewerMarkup.PdfViewer(System.String,System.String,System.String,System.Boolean,System.String,System.Boolean)">
+            <summary>
+            A PDF viewer: the browser's built-in PDF reader (zoom, page navigation, search, print) inside an iframe, with a toolbar
+            (download PDF, optional download Excel, print). Needs no JavaScript library and no CDN.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ViewerMarkup.ParameterForm(KSC.Excel.Model.ExcelTemplate,System.Collections.Generic.IDictionary{System.String,System.String},System.String,System.Boolean,System.String)">
+            <summary>
+            A GET form with one input per report parameter (text, number, date, jdate, bool, drop-down). Values come from the
+            current query (<c>p_Name</c>) or the template defaults. Returns "" when the template has no parameters.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Services.ViewerMarkup.ToPdf(KSC.Excel.Services.KscExcelOptions,KSC.Excel.Engine.RenderedWorkbook)">
+            <summary>Throws a clear error when the PDF package was not enabled.</summary>
+        </member>
+        <member name="T:KSC.Excel.Writer.CsvWriter">
+            <summary>Writes one sheet of a rendered report as CSV (UTF-8 with BOM so Excel shows Persian correctly).</summary>
+        </member>
+        <member name="T:KSC.Excel.Writer.DocxWriter">
+            <summary>
+            Writes a rendered report as a Word document (.docx): every sheet becomes a table (merged cells, fills, borders, fonts, alignment,
+            right-to-left), with generated images (barcodes, logos) inside their cells. Charts are not included. No Word installation needed.
+            </summary>
+        </member>
+        <member name="T:KSC.Excel.Writer.StyleBook">
+            <summary>Collects unique fonts / fills / borders / number formats / cell formats and writes xl/styles.xml.</summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.StyleBook.Dxf(KSC.Excel.Model.StyleDef)">
+            <summary>Differential format for conditional formatting rules.</summary>
+        </member>
+        <member name="T:KSC.Excel.Writer.XlsxStreamSink">
+            <summary>
+            Streaming .xlsx writer: rows go straight into the zip while the report is rendered, so memory stays flat for huge reports.
+            Text is written as inline strings and formulas have no cached values (Excel calculates on open).
+            Use through <c>IExcelReportService.RenderStreaming</c>.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.XlsxStreamSink.Complete">
+            <summary>Writes the workbook-level parts and closes the package. Call once, after rendering.</summary>
+        </member>
+        <member name="T:KSC.Excel.Writer.XlsxWriter">
+            <summary>
+            Writes a <see cref="T:KSC.Excel.Engine.RenderedWorkbook"/> as a standards-compliant .xlsx (SpreadsheetML) package.
+            No third-party library: only System.IO.Compression + System.Xml.
+            </summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.XlsxWriter.WriteDocParts(System.IO.Compression.ZipArchive,KSC.Excel.Model.ExcelTemplate)">
+            <summary>_rels/.rels and docProps (shared by the buffered and the streaming writer).</summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.XlsxWriter.WriteSheetHead(System.Xml.XmlWriter,KSC.Excel.Writer.XlsxWriter.SheetInfo,System.Boolean)">
+            <summary>worksheet start .. cols (everything before sheetData).</summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.XlsxWriter.WriteSheetTail(System.Xml.XmlWriter,KSC.Excel.Writer.XlsxWriter.SheetInfo,KSC.Excel.Writer.StyleBook,System.Collections.Generic.List{System.Collections.Generic.KeyValuePair{System.String,System.String}})">
+            <summary>Everything after sheetData, including the closing worksheet tag.</summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.XlsxWriter.WriteSheetExtras(System.IO.Compression.ZipArchive,KSC.Excel.Writer.XlsxWriter.SheetInfo,System.Collections.Generic.List{System.Collections.Generic.KeyValuePair{System.String,System.String}},System.Collections.Generic.List{KSC.Excel.Engine.RenderedImage})">
+            <summary>Rels part (external hyperlinks + drawing) and the drawing/chart parts of a finished sheet.</summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.XlsxWriter.ColWidth(System.Double)">
+            <summary>Template widths are Excel UI "character" widths; the file stores them plus the 5px cell padding.</summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.Xml.Esc(System.String)">
+            <summary>Escapes element text (also strips characters that are illegal in XML).</summary>
+        </member>
+        <member name="M:KSC.Excel.Writer.Xml.Clean(System.String)">
+            <summary>Removes characters that are illegal in XML 1.0.</summary>
+        </member>
+    </members>
+</doc>

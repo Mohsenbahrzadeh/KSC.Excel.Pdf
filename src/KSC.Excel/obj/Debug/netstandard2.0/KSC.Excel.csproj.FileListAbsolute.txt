@@ -1,0 +1,13 @@
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\bin\Debug\netstandard2.0\KSC.Excel.deps.json
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\bin\Debug\netstandard2.0\KSC.Excel.dll
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\bin\Debug\netstandard2.0\KSC.Excel.pdb
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\bin\Debug\netstandard2.0\KSC.Excel.xml
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.csproj.AssemblyReference.cache
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.GeneratedMSBuildEditorConfig.editorconfig
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.AssemblyInfoInputs.cache
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.AssemblyInfo.cs
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.csproj.CoreCompileInputs.cache
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.sourcelink.json
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.dll
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.xml
+D:\M.Bahrzadeh\KSC.Excel.Pdf\src\KSC.Excel\obj\Debug\netstandard2.0\KSC.Excel.pdb

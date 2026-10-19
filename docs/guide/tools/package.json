@@ -1,6 +1,0 @@
-{
-  "name": "ksc-excel-guide-tools",
-  "private": true,
-  "description": "Builds the PDF versions of the KSC.Excel guides",
-  "dependencies": { "puppeteer-core": "^24.0.0" }
-}
