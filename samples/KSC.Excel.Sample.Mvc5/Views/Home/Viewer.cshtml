@@ -1,0 +1,4 @@
+@using KSC.Excel.Mvc
+@model KSC.Excel.Sample.Mvc5.Models.Invoice
+@{ ViewBag.Title = "Viewer"; }
+<div class="card">@Html.KscExcelViewer("Invoice", Model, "invoice")</div>

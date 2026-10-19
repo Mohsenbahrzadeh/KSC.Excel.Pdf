@@ -1,0 +1,4 @@
+@using KSC.Excel.Mvc
+@model KSC.Excel.Sample.Mvc5.Models.Invoice
+@{ ViewBag.Title = "PDF"; }
+<div class="card">@Html.KscPdfViewer("Invoice", Model, "invoice", height: "75vh", showExcel: true)</div>

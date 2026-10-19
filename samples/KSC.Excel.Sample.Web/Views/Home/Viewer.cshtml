@@ -1,0 +1,5 @@
+@model KSC.Excel.Sample.Web.Models.Invoice
+@{ ViewData["Title"] = "Viewer"; }
+<div class="card">
+    @await Component.InvokeAsync("KscExcelViewer", new { template = "Invoice", data = Model, downloadName = "invoice" })
+</div>

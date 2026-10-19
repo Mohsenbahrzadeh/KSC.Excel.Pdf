@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    # Windows: the net48 tests, the WPF desktop designer and the MVC 5 adapter need it
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Build
+        run: dotnet build -c Release
+
+      - name: Test - engine (net10.0 + net48)
+        run: dotnet test tests/KSC.Excel.Tests -c Release --no-build
+
+      - name: Test - PDF (net10.0 + net48)
+        run: dotnet test tests/KSC.Excel.Pdf.Tests -c Release --no-build
+
+      - name: Desktop designer self-test (net10.0 + net48)
+        shell: pwsh
+        run: |
+          foreach ($tfm in 'net10.0-windows','net48') {
+            $exe = "src/KSC.Excel.Designer.Windows/bin/Release/$tfm/KSC.Excel.Designer.exe"
+            $out = "$env:RUNNER_TEMP/selftest-$tfm.txt"
+            $p = Start-Process $exe -ArgumentList '--selftest', $out -PassThru
+            if (-not $p.WaitForExit(90000)) { $p.Kill(); throw "$tfm designer self-test timed out" }
+            $text = Get-Content $out -Raw
+            Write-Host "$tfm : $text"
+            if (-not $text.StartsWith('OK')) { throw "$tfm designer self-test failed" }
+          }
+        continue-on-error: true   # needs the WebView2 runtime (present on windows-latest images; drop this line once it is stable for you)
+
+      - name: Pack
+        run: dotnet pack -c Release --no-build -o artifacts/nuget
+
+      - name: Publish desktop designer
+        run: |
+          dotnet publish src/KSC.Excel.Designer.Windows -c Release -f net10.0-windows -r win-x64 --self-contained false -o artifacts/designer-net10
+          dotnet publish src/KSC.Excel.Designer.Windows -c Release -f net48 -o artifacts/designer-net48
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuget
+          path: artifacts/nuget
+      - uses: actions/upload-artifact@v4
+        with:
+          name: designer-net10
+          path: artifacts/designer-net10
+      - uses: actions/upload-artifact@v4
+        with:
+          name: designer-net48
+          path: artifacts/designer-net48

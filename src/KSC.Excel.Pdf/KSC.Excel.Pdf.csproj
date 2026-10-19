@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.0: .NET Framework 4.6.1+ and every modern .NET (SkiaSharp ships native assets for both) -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>KSC.Excel.Pdf</RootNamespace>
+    <Version>1.0.0</Version>
+    <PackageTags>excel;pdf;report;persian;rtl</PackageTags>
+    <Description>PDF export for KSC.Excel: renders the same template + data to PDF with correct Persian/Arabic shaping and RTL layout (SkiaSharp + HarfBuzz).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.HarfBuzz" />
+    <!-- SkiaSharp 3.x references Unsafe 6.x; listing it makes .NET Framework apps generate the binding redirect -->
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KSC.Excel\KSC.Excel.csproj" />
+  </ItemGroup>
+
+</Project>

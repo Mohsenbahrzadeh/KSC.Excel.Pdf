@@ -1,0 +1,597 @@
+{
+  "schemaVersion": 1,
+  "name": "Invoice",
+  "title": "فاکتور فروش",
+  "modelName": "Invoice",
+  "defaultFont": "Tahoma",
+  "defaultFontSize": 10.0,
+  "sheets": [
+    {
+      "name": "فاکتور",
+      "rtl": true,
+      "showGridLines": false,
+      "zoom": 100,
+      "defaultColWidth": 12.0,
+      "defaultRowHeight": 18.0,
+      "columns": [
+        {
+          "index": 1,
+          "width": 7.0
+        },
+        {
+          "index": 2,
+          "width": 36.0
+        },
+        {
+          "index": 3,
+          "width": 10.0
+        },
+        {
+          "index": 4,
+          "width": 18.0
+        },
+        {
+          "index": 5,
+          "width": 20.0
+        }
+      ],
+      "rows": [
+        {
+          "index": 1,
+          "height": 40.0
+        },
+        {
+          "index": 8,
+          "height": 26.0
+        },
+        {
+          "index": 12,
+          "height": 36.0
+        },
+        {
+          "index": 14,
+          "height": 84.0
+        }
+      ],
+      "cells": [
+        {
+          "r": 1,
+          "c": 1,
+          "v": "فاکتور فروش",
+          "s": "title"
+        },
+        {
+          "r": 1,
+          "c": 2,
+          "s": "title"
+        },
+        {
+          "r": 1,
+          "c": 3,
+          "s": "title"
+        },
+        {
+          "r": 1,
+          "c": 4,
+          "s": "title"
+        },
+        {
+          "r": 1,
+          "c": 5,
+          "s": "title"
+        },
+        {
+          "r": 3,
+          "c": 1,
+          "v": "شماره فاکتور",
+          "s": "label"
+        },
+        {
+          "r": 3,
+          "c": 2,
+          "s": "label"
+        },
+        {
+          "r": 3,
+          "c": 3,
+          "v": "{{Number}}",
+          "s": "value"
+        },
+        {
+          "r": 3,
+          "c": 4,
+          "s": "value"
+        },
+        {
+          "r": 3,
+          "c": 5,
+          "s": "value"
+        },
+        {
+          "r": 4,
+          "c": 1,
+          "v": "تاریخ",
+          "s": "label"
+        },
+        {
+          "r": 4,
+          "c": 2,
+          "s": "label"
+        },
+        {
+          "r": 4,
+          "c": 3,
+          "v": "{{Date|fa}}",
+          "s": "value"
+        },
+        {
+          "r": 4,
+          "c": 4,
+          "s": "value"
+        },
+        {
+          "r": 4,
+          "c": 5,
+          "s": "value"
+        },
+        {
+          "r": 5,
+          "c": 1,
+          "v": "مشتری",
+          "s": "label"
+        },
+        {
+          "r": 5,
+          "c": 2,
+          "s": "label"
+        },
+        {
+          "r": 5,
+          "c": 3,
+          "v": "{{Customer.Name}}",
+          "s": "value"
+        },
+        {
+          "r": 5,
+          "c": 4,
+          "s": "value"
+        },
+        {
+          "r": 5,
+          "c": 5,
+          "s": "value"
+        },
+        {
+          "r": 6,
+          "c": 1,
+          "v": "تلفن",
+          "s": "label"
+        },
+        {
+          "r": 6,
+          "c": 2,
+          "s": "label"
+        },
+        {
+          "r": 6,
+          "c": 3,
+          "v": "{{Customer.Phone}}",
+          "s": "value"
+        },
+        {
+          "r": 6,
+          "c": 4,
+          "s": "value"
+        },
+        {
+          "r": 6,
+          "c": 5,
+          "s": "value"
+        },
+        {
+          "r": 8,
+          "c": 1,
+          "v": "ردیف",
+          "s": "head"
+        },
+        {
+          "r": 8,
+          "c": 2,
+          "v": "شرح کالا / خدمات",
+          "s": "head"
+        },
+        {
+          "r": 8,
+          "c": 3,
+          "v": "تعداد",
+          "s": "head"
+        },
+        {
+          "r": 8,
+          "c": 4,
+          "v": "قیمت واحد (ریال)",
+          "s": "head"
+        },
+        {
+          "r": 8,
+          "c": 5,
+          "v": "مبلغ (ریال)",
+          "s": "head"
+        },
+        {
+          "r": 9,
+          "c": 1,
+          "v": "{{$index}}",
+          "s": "idx"
+        },
+        {
+          "r": 9,
+          "c": 2,
+          "v": "{{Product}}",
+          "s": "text"
+        },
+        {
+          "r": 9,
+          "c": 3,
+          "v": "{{Qty}}",
+          "s": "num"
+        },
+        {
+          "r": 9,
+          "c": 4,
+          "v": "{{UnitPrice}}",
+          "s": "money"
+        },
+        {
+          "r": 9,
+          "c": 5,
+          "v": "=[Qty]*[UnitPrice]",
+          "s": "money"
+        },
+        {
+          "r": 10,
+          "c": 1,
+          "v": "جمع کل",
+          "s": "totL"
+        },
+        {
+          "r": 10,
+          "c": 2,
+          "s": "totL"
+        },
+        {
+          "r": 10,
+          "c": 3,
+          "s": "totL"
+        },
+        {
+          "r": 10,
+          "c": 4,
+          "s": "totL"
+        },
+        {
+          "r": 10,
+          "c": 5,
+          "v": "=SUM([Lines:E])",
+          "s": "totN"
+        },
+        {
+          "r": 12,
+          "c": 1,
+          "v": "توضیحات: {{Notes}}",
+          "s": "note"
+        },
+        {
+          "r": 12,
+          "c": 2,
+          "s": "note"
+        },
+        {
+          "r": 12,
+          "c": 3,
+          "s": "note"
+        },
+        {
+          "r": 12,
+          "c": 4,
+          "s": "note"
+        },
+        {
+          "r": 12,
+          "c": 5,
+          "s": "note"
+        },
+        {
+          "r": 14,
+          "c": 1,
+          "v": "{{Number}}",
+          "bc": "qr"
+        },
+        {
+          "r": 14,
+          "c": 3,
+          "v": "{{Number}}",
+          "bc": "code128"
+        }
+      ],
+      "merges": [
+        "A1:E1",
+        "A3:B3",
+        "C3:E3",
+        "A4:B4",
+        "C4:E4",
+        "A5:B5",
+        "C5:E5",
+        "A6:B6",
+        "C6:E6",
+        "A10:D10",
+        "A12:E12",
+        "A14:B14",
+        "C14:E14"
+      ],
+      "bands": [
+        {
+          "name": "Lines",
+          "source": "Lines",
+          "firstRow": 9,
+          "lastRow": 9,
+          "alternateFill": "#F5F9FD"
+        }
+      ],
+      "conditionalFormats": [],
+      "validations": [],
+      "images": [],
+      "page": {
+        "orientation": "portrait",
+        "paperSize": 9,
+        "fitToWidth": true,
+        "scale": 100,
+        "marginTop": 0.75,
+        "marginBottom": 0.75,
+        "marginLeft": 0.5,
+        "marginRight": 0.5,
+        "centerHorizontally": true,
+        "footer": "&C&P / &N"
+      }
+    }
+  ],
+  "styles": {
+    "title": {
+      "size": 20.0,
+      "bold": true,
+      "color": "#FFFFFF",
+      "fill": "#1F4E79",
+      "h": "center",
+      "v": "center"
+    },
+    "label": {
+      "bold": true,
+      "color": "#1F4E79",
+      "fill": "#EAF1F8",
+      "left": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "h": "right",
+      "v": "center",
+      "indent": 1
+    },
+    "value": {
+      "left": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "h": "right",
+      "v": "center",
+      "indent": 1
+    },
+    "head": {
+      "bold": true,
+      "color": "#FFFFFF",
+      "fill": "#2E75B6",
+      "left": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "h": "center",
+      "v": "center",
+      "wrap": true
+    },
+    "text": {
+      "left": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "v": "center",
+      "indent": 1
+    },
+    "num": {
+      "left": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "h": "center",
+      "v": "center",
+      "format": "#,##0"
+    },
+    "money": {
+      "left": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "v": "center",
+      "format": "#,##0"
+    },
+    "idx": {
+      "color": "#6B7785",
+      "left": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#BFC9D4"
+      },
+      "h": "center",
+      "v": "center"
+    },
+    "totL": {
+      "bold": true,
+      "color": "#FFFFFF",
+      "fill": "#1F4E79",
+      "left": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "h": "left",
+      "v": "center"
+    },
+    "totN": {
+      "bold": true,
+      "color": "#1F4E79",
+      "fill": "#DDEBF7",
+      "left": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "right": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "top": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "bottom": {
+        "style": "thin",
+        "color": "#1F4E79"
+      },
+      "v": "center",
+      "format": "#,##0"
+    },
+    "note": {
+      "italic": true,
+      "color": "#555555",
+      "v": "top",
+      "wrap": true
+    }
+  },
+  "sampleData": {
+    "Number": "INV-1403-021",
+    "Date": "2025-03-01",
+    "Customer": {
+      "Name": "شرکت نمونه",
+      "Phone": "021-12345678"
+    },
+    "Lines": [
+      {
+        "Product": "ورق فولادی ۲ میلی‌متر",
+        "Qty": 12,
+        "UnitPrice": 4500000
+      },
+      {
+        "Product": "سیم جوش",
+        "Qty": 30,
+        "UnitPrice": 380000
+      },
+      {
+        "Product": "حمل و نقل",
+        "Qty": 1,
+        "UnitPrice": 2500000
+      }
+    ],
+    "Notes": "پرداخت ظرف ۳۰ روز"
+  }
+}
