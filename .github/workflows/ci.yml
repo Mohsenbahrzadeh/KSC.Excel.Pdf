@@ -49,15 +49,15 @@ jobs:
           dotnet publish src/KSC.Excel.Designer.Windows -c Release -f net10.0-windows -r win-x64 --self-contained false -o artifacts/designer-net10
           dotnet publish src/KSC.Excel.Designer.Windows -c Release -f net48 -o artifacts/designer-net48
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: nuget
           path: artifacts/nuget
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: designer-net10
           path: artifacts/designer-net10
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: designer-net48
           path: artifacts/designer-net48
