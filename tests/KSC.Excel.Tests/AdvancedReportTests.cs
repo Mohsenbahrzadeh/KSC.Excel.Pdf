@@ -150,4 +150,41 @@ public class AdvancedReportTests
         Assert.True(Jalali.TryParse("1403/12/30", out d));       // 1403 is a leap year
         Assert.False(Jalali.TryParse("1404/12/30", out d));
     }
+
+    // ------------------------------------------------------------------ combo chart
+    static ExcelTemplate Combo()
+    {
+        var b = new TemplateBuilder("Ch");
+        b.Sheet("S", s => { s.Cell("A1", "{{M}}").Cell("B1", "{{Amount}}").Cell("C1", "{{Pct}}"); s.Band("R", "Rows", 1, 1); });
+        var t = b.Build();
+        t.Sheets[0].Charts.Add(new ChartDef
+        {
+            Name = "c", Type = "column", Title = "combo", Row = 8, Col = 1, Categories = "A1:A1",
+            Series = { new ChartSeriesDef { Name = "Amount", Values = "B1:B1" }, new ChartSeriesDef { Name = "Pct", Values = "C1:C1", Type = "line", Secondary = true } }
+        });
+        return t;
+    }
+
+    const string ComboData = "{\"Rows\":[{\"M\":\"a\",\"Amount\":100,\"Pct\":0.1},{\"M\":\"b\",\"Amount\":250,\"Pct\":0.4},{\"M\":\"c\",\"Amount\":180,\"Pct\":0.3}]}";
+
+    [Fact]
+    public void Combo_chart_writes_bar_and_line_with_a_secondary_axis()
+    {
+        var x = Make.Render(Combo(), JObject.Parse(ComboData));
+        var chart = x.Xml.Keys.First(k => k.StartsWith("xl/charts/chart")); var xml = x.Xml[chart].ToString();
+        Assert.Contains("c:barChart", xml); Assert.Contains("c:lineChart", xml);
+        Assert.Contains("444444", xml);                              // secondary value axis
+        Assert.Contains("<c:crosses val=\"max\"", xml.Replace(" />", "/>").Replace("\"/>", "\"/>"));
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(xml, "<c:ser>").Count);
+        var dump = Environment.GetEnvironmentVariable("KXL_DUMP_DIR");
+        if (!string.IsNullOrEmpty(dump)) File.WriteAllBytes(Path.Combine(dump, "combo.xlsx"), new ExcelReportService(new KscExcelOptions(), new MemoryTemplateStore()).Render(Combo(), JObject.Parse(ComboData)));
+    }
+
+    [Fact]
+    public void Series_type_roundtrips_in_template_json()
+    {
+        var t = ExcelTemplate.FromJson(Combo().ToJson());
+        var s = t.Sheets[0].Charts[0].Series;
+        Assert.Equal("line", s[1].Type); Assert.True(s[1].Secondary); Assert.Null(s[0].Type);
+    }
 }

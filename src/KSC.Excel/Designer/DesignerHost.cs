@@ -98,6 +98,7 @@ namespace KSC.Excel.Designer
                     return Ok(new
                     {
                         title = _opt.DesignerTitle,
+                        versions = _svc.Store is IVersionedTemplateStore,
                         language = _opt.Language,
                         readOnly = _opt.ReadOnlyDesigner,
                         version = typeof(DesignerHost).Assembly.GetName().Version.ToString(3),
@@ -112,6 +113,15 @@ namespace KSC.Excel.Designer
 
                 case "templates":
                     if (segs.Length == 1 && method == "GET") return Ok(_svc.Store.List());
+                    if (segs.Length >= 3 && segs[2] == "versions" && method == "GET")
+                    {
+                        // history (only for stores that keep it): list, or one version's JSON (to preview / restore by saving)
+                        var vs = _svc.Store as IVersionedTemplateStore;
+                        if (vs == null) return Ok(new object[0]);
+                        if (segs.Length == 3) return Ok(vs.ListVersions(segs[1]));
+                        var vt = vs.GetVersion(segs[1], segs[3]);
+                        return vt == null ? Error(404, "Version not found.") : Raw(vt.ToJson());
+                    }
                     if (segs.Length == 2)
                     {
                         var name = segs[1];

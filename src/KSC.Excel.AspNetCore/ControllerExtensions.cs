@@ -60,6 +60,27 @@ public static class ControllerExtensions
     internal static byte[] RenderPdf(IExcelReportService svc, KscExcelOptions options, string templateName, object? data, IDictionary<string, object>? parameters)
         => ViewerMarkup.ToPdf(options, svc.Bind(svc.GetTemplate(templateName), data!, parameters!));
 
+    // ---------------------------------------------------------------- any format / report parameters
+
+    /// <summary>
+    /// <c>return this.ReportFile("Invoice", model, ReportFormat.Docx);</c> - xlsx, pdf, csv, docx, html or png. Pdf/Png need <c>o.UsePdf()</c>.
+    /// </summary>
+    public static FileContentResult ReportFile(this ControllerBase controller, string templateName, object? data, ReportFormat format, string? fileName = null, IDictionary<string, object>? parameters = null, int page = 1)
+    {
+        var sp = controller.HttpContext.RequestServices;
+        var f = sp.GetRequiredService<IExcelReportService>().Export(sp.GetRequiredService<KscExcelOptions>(), templateName, data, parameters!, format, page);
+        return new FileContentResult(f.Bytes, f.ContentType) { FileDownloadName = ReportExport.FileName(fileName ?? templateName, f.Extension) };
+    }
+
+    /// <summary>Typed report parameters from the current query string (<c>?p_From=2025-01-01&amp;p_Min=100</c>) for the template's declared parameters.</summary>
+    public static Dictionary<string, object> GetReportParameters(this ControllerBase controller, string templateName)
+    {
+        var tpl = controller.HttpContext.RequestServices.GetRequiredService<IExcelReportService>().GetTemplate(templateName);
+        var q = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in controller.HttpContext.Request.Query) q[kv.Key] = kv.Value.ToString();
+        return ReportParameters.FromQuery(tpl, q);
+    }
+
     internal static string EnsurePdf(string name) => name.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) ? name : name + ".pdf";
 
     internal static string EnsureXlsx(string name) => name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ? name : name + ".xlsx";

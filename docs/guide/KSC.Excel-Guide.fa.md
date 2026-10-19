@@ -231,6 +231,10 @@ artifacts\KSC.Excel.Designer\KSC.Excel.Designer.exe
 ### ۴-۸) ذخیره‌ی خودکار و جابه‌جایی
 پیش‌نویس هر تغییر در مرورگر نگه داشته می‌شود و پس از بستن اتفاقی صفحه «بازیابی؟» می‌پرسد. ذخیره‌ی واقعی با **ذخیره** روی سرور است. **خروجی/ورود JSON** برای جابه‌جایی بین محیط‌هاست. آدرس `?t=Invoice` قالب را مستقیم باز می‌کند.
 
+### ۴-۹) تاریخچه‌ی قالب
+
+با ذخیره‌ساز فایل پیش‌فرض، هر ذخیره نسخه‌ی جایگزین‌شده را در `ExcelTemplates/.history/<name>/` نگه می‌دارد (۵۰ نسخه‌ی آخر؛ `FileTemplateStore.MaxVersions`، صفر = خاموش). دکمه‌ی **تاریخچه** در نوار بالا آن‌ها را فهرست می‌کند (زمان، اندازه)؛ *باز کردن* نسخه را در طراح می‌گذارد و *ذخیره* آن را فعلی می‌کند — نسخه‌ای که جایگزین می‌شود هم در تاریخچه می‌ماند، پس چیزی گم نمی‌شود و قالب حذف‌شده هم بازیابی‌پذیر است. ذخیره‌سازهای سفارشی با پیاده‌سازی `IVersionedTemplateStore` (`ListVersions`، `GetVersion`) فعال می‌شوند؛ دکمه فقط وقتی دیده می‌شود که ذخیره‌ساز پشتیبانی کند.
+
 ---
 
 ## ۵) آموزش گام‌به‌گام: ساخت یک فاکتور
@@ -405,6 +409,10 @@ public IActionResult Invoice(int id) => this.ExcelFile("Invoice", _repo.Get(id),
 
 پارامتر گزارش از نوع **`jdate`** متن شمسی را هم از پیش‌فرض طراح و هم از کد می‌پذیرد: `new Dictionary<string, object> { ["From"] = "1404/01/01" }`؛ قالب تاریخ واقعی می‌بیند (`{{$p.From|fa}}`، در SQL `@From`).
 
+### ۶-۱۰) نمودار ترکیبی
+
+در پنجره‌ی نمودار هر سری **نوع** خودش (ستونی / خطی / ناحیه‌ای) و گزینه‌ی **محور دوم** را دارد: ستون برای مبلغ و خط برای درصد روی محور سمت راست. در `.xlsx` (در Excel راستی‌آزمایی شد: سری ستونی روی محور اول، سری خطی روی محور دوم) و در PDF کار می‌کند. در JSON: `{ "values": "C9:C9", "type": "line", "secondary": true }`. نمودار میله‌ای افقی و دایره‌ای نوع سری را نادیده می‌گیرند.
+
 ---
 
 ## ۷) راهنمای برنامه‌نویس — .NET (8/10)
@@ -535,6 +543,59 @@ Assert.Empty(wb.Warnings);                                  // قالب بی‌�
 var bytes = XlsxWriter.ToBytes(wb);                          // و در صورت نیاز با ZipArchive بررسی کنید
 ```
 
+### ۷-۹) فرمت‌های خروجی دیگر: Word، CSV، HTML، PNG
+
+```csharp
+return this.ReportFile("Invoice", model, ReportFormat.Docx);        // ASP.NET Core:  xlsx | pdf | csv | docx | html | png
+return this.Report("Invoice", model, ReportFormat.Csv);             // MVC 5
+var file = svc.Export(options, "Invoice", model, null, ReportFormat.Docx);   // بایت‌ها + ContentType + Extension، هرجا
+```
+
+| فرمت | خروجی | نکته |
+|---|---|---|
+| `Xlsx` | فایل Excel | |
+| `Pdf`، `Png` | PDF / یک صفحه به‌صورت تصویر (آرگومان `page`) | نیاز به `o.UsePdf()` |
+| `Csv` | یک برگه (`page` = شماره‌ی برگه)، UTF-8 با BOM، با نقل‌قول، **ایمن در برابر تزریق فرمول** (متن شروع‌شده با `=` `+` `-` `@` یک `'` می‌گیرد) | فارسی در Excel درست باز می‌شود |
+| `Docx` | سند Word: برای هر برگه یک جدول، ادغام، رنگ، کادر، فونت، راست‌به‌چپ، تصویر بارکد/لوگو، اندازه و جهت صفحه | Word لازم نیست؛ نمودار نمی‌آید؛ با Word واقعی باز و بررسی شد |
+| `Html` | صفحه‌ی HTML مستقل (همه‌ی برگه‌ها، جهت از برگه) | |
+
+### ۷-۱۰) سرور گزارش، پارامتر و Drill-down
+
+گزارش‌ها را منتشر کنید تا کاربران بدون نوشتن کنترلر یک صفحه با **فرم پارامتر**، نمای HTML یا PDF و دکمه‌های دانلود داشته باشند:
+
+```csharp
+builder.Services.AddKscExcel(o =>
+{
+    o.UsePdf();
+    o.AddReport("Sales", p => repo.Sales((DateTime)p["From"], (double)p["Min"]), title: "گزارش فروش");   // داده = کدی که پارامترهای تایپ‌شده را می‌گیرد
+    o.AddReport("Customer", p => repo.Customer((string)p["Id"]));
+});
+app.MapKscExcelReports("/reports").RequireAuthorization();           // MVC 5: routes.MapKscExcelReports(); KscExcel.AuthorizeReports = ctx => ...
+```
+
+- `/reports` گزارش‌های ثبت‌شده را فهرست می‌کند. `/reports/Sales?p_From=2025-03-21&p_Min=100` یکی را نشان می‌دهد (**نام پارامتر در آدرس `p_<نام>` است**). پارامترها از تب «مجموعه و پارامتر» قالب می‌آیند: نوع‌های `text`، `number`، `date`، **`jdate`**، `bool`؛ اگر پارامتر **Options** داشته باشد (`A|B|C` یا `a:Alpha|b:Beta`) لیست انتخابی ساخته می‌شود.
+- `?format=pdf|xlsx|docx|csv|html|png` فایل را برمی‌گرداند (pdf/png/html در مرورگر باز می‌شوند، بقیه دانلود؛ با `&download=1` دانلود اجباری)؛ `?view=pdf` PDF را داخل صفحه نشان می‌دهد.
+- **Drill-down:** لینک سلول `report:Customer?Id={{CustomerId|urlenc}}` به `/reports/Customer?p_Id=...` تبدیل می‌شود: با کلیک روی یک ردیف گزارش خلاصه، گزارش جزئیات باز می‌شود. برای هر مقدار داخل لینک `|urlenc` بگذارید.
+- در صفحه‌های خودتان: `@await Component.InvokeAsync("KscExcelViewer", new { ..., showParameters = true })` (و `KscPdfViewer`؛ در MVC: `Html.KscExcelViewer(..., showParameters: true)`) همان فرم را بالای نمایشگر می‌گذارد؛ مقدارهای انتخابی را در اکشن با `this.GetReportParameters("Sales")` بخوانید.
+- ایمنی: فقط گزارش‌های ثبت‌شده در کد اجرا می‌شوند (نام قالب در آدرس کاری نمی‌کند)؛ پارامترها تایپ‌شده‌اند و نامعتبر نادیده گرفته می‌شوند؛ خطای غیرمنتظره پیام کلی نشان می‌دهد و به `o.OnReportError` می‌رود. **گزارش‌ها داده‌ی شما را نشان می‌دهند: مسیر را محافظت کنید.**
+
+### ۷-۱۱) زمان‌بندی و ایمیل
+
+```csharp
+builder.Services.AddKscExcelScheduler(s => s
+    .UseSmtp(new SmtpOptions { Host = "smtp.example.com", Port = 587, User = "...", Password = "...", From = "reports@example.com" })
+    .Add(new ReportJob
+    {
+        Name = "DailySales", Report = "Sales", Format = ReportFormat.Pdf,
+        Schedule = ReportSchedule.Daily(TimeSpan.FromHours(7)),
+        ParameterFactory = now => new Dictionary<string, object> { ["From"] = now.Date.AddDays(-1) },     // «دیروز»
+        To = { "manager@example.com" }, Subject = "گزارش فروش", SaveToFolder = @"D:\Reports"
+    }));
+// MVC 5 / هر میزبان:  KscExcel.StartScheduler(s => ...);   یا  new ReportScheduler(options, service).Add(...).Start();
+```
+
+زمان‌بندی‌ها (ساعت محلی سرور): `Daily`، `Weekly(DayOfWeek, time)`، `Monthly(day, time)` (با گیرش: ۳۱ = آخرین روز)، **`MonthlyJalali(day, time)`** (تقویم شمسی)، `EveryMinutes(n)`. کاری که از دست رفته (سرور خاموش بوده) **یک بار** اجرا می‌شود، نه چندبار پشت‌سرهم؛ اجرای در حال انجام دوباره شروع نمی‌شود؛ خطا به `scheduler.OnRun` گزارش می‌شود و بقیه‌ی کارها را متوقف نمی‌کند. مقصدها: ایمیل (SMTP، پیوست)، پوشه، یا `IReportSink` خودتان. `RunNow("DailySales")` کار را فوری اجرا می‌کند. زمان‌سنج داخل برنامه است: اگر میزبان بازیافت شود یا بخوابد (Idle Time-out در IIS) از یک سرویس/Job که `RunDueJobs()` را صدا بزند استفاده کنید.
+
 ---
 
 ## ۸) راهنمای برنامه‌نویس — .NET Framework (MVC 5)
@@ -646,6 +707,7 @@ app.MapGet("/r", (IExcelReportService s, KscExcelOptions o) => s.Pdf(o, "Invoice
 
 - **QR:** حالت بایتی (UTF-8؛ پس فارسی هم می‌شود)، نسخه‌ی ۱ تا ۱۰ (حدود ۲۷۰ بایت در سطح L)، سطح تصحیح خطا L/M/Q/H (`qr:L`، `qr:M`، `qr:Q`، `qr:H`؛ پیش‌فرض M). در تست‌ها با یک رمزگشای مستقل راستی‌آزمایی شده است.
 - **Code 128:** نویسه‌های قابل چاپ ASCII؛ مقدار فقط‌رقمی با طول زوج خودکار از مجموعه‌ی فشرده‌ی C استفاده می‌کند.
+- **EAN-13 / EAN-8** (`ean13`، `ean8`): رقم؛ ۱۲ (یا ۷) رقم بدهید تا رقم کنترلی اضافه شود، یا ۱۳ (۸) رقم با رقم کنترلی درست. **Code 39** (`code39`): `0-9 A-Z - . space $ / + %`. همه با رمزگشای مستقل راستی‌آزمایی شده‌اند. (PDF417 و Data Matrix نیستند.)
 - متنی که قابل کدگذاری نباشد هشدار می‌دهد و تصویری نمی‌سازد (بقیه‌ی گزارش ساخته می‌شود).
 - JSON قالب: `{ "r": 14, "c": 1, "v": "{{Number}}", "bc": "qr" }`. سلول بارکد با نویسنده‌ی Streaming سازگار نیست.
 
@@ -870,7 +932,7 @@ dotnet test tests/KSC.Excel.Pdf.Tests
 
 **نیست (به‌دلیل معماری شبکه‌ای موتور):** *زیرگزارش به‌صورت قالب جدا* — از نوارهای تو در تو و چند مجموعه‌ی داده استفاده کنید (master/detail/detail را پوشش می‌دهند)؛ اشیای آزاد خارج از شبکه‌ی سلول.
 
-**همچنین انجام شد:** گروه‌بندی چندسطحی با SUBTOTAL، ستون‌های محاسباتی، توابع تقویم شمسی، رمز/محدودیت PDF.
+**همچنین انجام شد:** خروجی CSV/Word/HTML/PNG، سرور گزارش با فرم پارامتر و drill-down، زمان‌بندی + ایمیل، تاریخچه‌ی قالب، نمودار ترکیبی، بارکد EAN/Code 39، گروه‌بندی چندسطحی با SUBTOTAL، ستون‌های محاسباتی، توابع تقویم شمسی، رمز/محدودیت PDF.
 
 **بعدی:** کمک‌های OData/GraphQL، ورود نمودار، نسخه‌بندی قالب، انتشار NuGet، Streaming برای جمع بالای جدول، نمودار ترکیبی، بارکدهای EAN-13/Code 39/PDF417.
 

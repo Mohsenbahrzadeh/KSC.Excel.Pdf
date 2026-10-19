@@ -413,7 +413,7 @@ namespace KSC.Excel.Engine
                 var alt = AltFill(scope);
                 if (alt != null && (style == null || string.IsNullOrEmpty(style.Fill))) style = Derive(style, "alt:" + alt, x => x.Fill = alt);
                 var cell = new RenderedCell { Col = cd.C, Style = style, Row = _outRow };
-                if (!string.IsNullOrEmpty(cd.L)) cell.Link = _text.EvalText(cd.L, scope);
+                if (!string.IsNullOrEmpty(cd.L)) cell.Link = Services.ReportLinks.Resolve(_text.EvalText(cd.L, scope), _opt.ReportLinkBase);
 
                 var v = cd.V;
                 if (string.IsNullOrEmpty(v)) return cell;
@@ -678,7 +678,7 @@ namespace KSC.Excel.Engine
                 {
                     if (string.IsNullOrWhiteSpace(s.Values) || !MapRange(s.Values, out r1, out c1, out r2, out c2, out delta)) { _warn("Chart '" + ch.Name + "': a series has an invalid or empty range."); continue; }
                     rc.SeriesValues.Add(AbsRef(r1, c1, r2, c2));
-                    rc.SeriesColors.Add(s.Color);
+                    rc.SeriesColors.Add(s.Color); rc.SeriesTypes.Add(s.Type); rc.SeriesSecondary.Add(s.Secondary);
                     int nr, nc, nr2, nc2;
                     if (!string.IsNullOrWhiteSpace(s.NameCell) && MapRange(s.NameCell, out nr, out nc, out nr2, out nc2, out delta))
                     { rc.SeriesNames.Add(AbsRef(nr, nc, nr, nc)); rc.SeriesNameIsRef.Add(true); }

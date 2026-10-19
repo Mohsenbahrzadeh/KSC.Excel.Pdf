@@ -23,13 +23,13 @@ namespace KSC.Excel.Engine
     /// </summary>
     public static class Barcodes
     {
-        public static readonly string[] Types = { "qr", "code128" };
+        public static readonly string[] Types = { "qr", "code128", "ean13", "ean8", "code39" };
 
         public static bool IsSupported(string type)
         {
             if (string.IsNullOrEmpty(type)) return false;
             var t = type.ToLowerInvariant();
-            return t == "qr" || t == "code128";
+            return t == "qr" || t.StartsWith("qr:") || t == "code128" || t == "ean13" || t == "ean8" || t == "code39";
         }
 
         /// <summary>Builds the module matrix. "qr" (optionally "qr:L|M|Q|H") or "code128". Throws ArgumentException when the text cannot be encoded.</summary>
@@ -49,6 +49,13 @@ namespace KSC.Excel.Engine
                 var m = new bool[1, bars.Length];
                 for (int i = 0; i < bars.Length; i++) m[0, i] = bars[i];
                 return new BarcodeMatrix { Modules = m, Quiet = 10, Is2D = false };
+            }
+            if (t == "ean13" || t == "ean8" || t == "code39")
+            {
+                var bars = t == "ean13" ? Linear.Ean13(text) : t == "ean8" ? Linear.Ean8(text) : Linear.Code39(text);
+                var m = new bool[1, bars.Length];
+                for (int i = 0; i < bars.Length; i++) m[0, i] = bars[i];
+                return new BarcodeMatrix { Modules = m, Quiet = t == "code39" ? 10 : 9, Is2D = false };
             }
             throw new ArgumentException("Unknown barcode type '" + type + "'. Use qr or code128.");
         }
@@ -72,6 +79,94 @@ namespace KSC.Excel.Engine
                         for (int x = x0; x < x0 + k; x++) pixels[y * width + x] = 0;
                 }
             return Png.Gray8(pixels, width, height);
+        }
+
+        // =================================================================== EAN-13 / EAN-8 / Code 39
+        static class Linear
+        {
+            static readonly string[] L = { "0001101", "0011001", "0010011", "0111101", "0100011", "0110001", "0101111", "0111011", "0110111", "0001011" };
+            static readonly string[] G = { "0100111", "0110011", "0011011", "0100001", "0011101", "0111001", "0000101", "0010001", "0001001", "0010111" };
+            static readonly string[] R = { "1110010", "1100110", "1101100", "1000010", "1011100", "1001110", "1010000", "1000100", "1001000", "1110100" };
+            static readonly string[] Parity = { "LLLLLL", "LLGLGG", "LLGGLG", "LLGGGL", "LGLLGG", "LGGLLG", "LGGGLL", "LGLGLG", "LGLGGL", "LGGLGL" };
+
+            static int CheckDigit(string digits)
+            {
+                int sum = 0;
+                for (int i = 0; i < digits.Length; i++)
+                {
+                    int d = digits[digits.Length - 1 - i] - '0';
+                    sum += (i % 2 == 0) ? d * 3 : d;
+                }
+                return (10 - sum % 10) % 10;
+            }
+
+            static string Digits(string text, int bodyLen, string name)
+            {
+                var t = (text ?? "").Trim();
+                foreach (var ch in t) if (ch < '0' || ch > '9') throw new ArgumentException(name + " needs digits only.");
+                if (t.Length == bodyLen) t += CheckDigit(t);
+                else if (t.Length == bodyLen + 1)
+                {
+                    if (t[bodyLen] - '0' != CheckDigit(t.Substring(0, bodyLen))) throw new ArgumentException(name + ": wrong check digit (expected " + CheckDigit(t.Substring(0, bodyLen)) + ").");
+                }
+                else throw new ArgumentException(name + " needs " + bodyLen + " digits (the check digit is added) or " + (bodyLen + 1) + " with a valid check digit.");
+                return t;
+            }
+
+            static bool[] Bits(string s) { var b = new bool[s.Length]; for (int i = 0; i < s.Length; i++) b[i] = s[i] == '1'; return b; }
+
+            public static bool[] Ean13(string text)
+            {
+                var d = Digits(text, 12, "EAN-13");
+                var sb = new StringBuilder("101");
+                var par = Parity[d[0] - '0'];
+                for (int i = 1; i <= 6; i++) sb.Append(par[i - 1] == 'L' ? L[d[i] - '0'] : G[d[i] - '0']);
+                sb.Append("01010");
+                for (int i = 7; i <= 12; i++) sb.Append(R[d[i] - '0']);
+                sb.Append("101");
+                return Bits(sb.ToString());
+            }
+
+            public static bool[] Ean8(string text)
+            {
+                var d = Digits(text, 7, "EAN-8");
+                var sb = new StringBuilder("101");
+                for (int i = 0; i < 4; i++) sb.Append(L[d[i] - '0']);
+                sb.Append("01010");
+                for (int i = 4; i < 8; i++) sb.Append(R[d[i] - '0']);
+                sb.Append("101");
+                return Bits(sb.ToString());
+            }
+
+            // bar/space widths (n = narrow, w = wide), 9 elements per character
+            const string Alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%*";
+            static readonly string[] C39 =
+            {
+                "nnnwwnwnn", "wnnwnnnnw", "nnwwnnnnw", "wnwwnnnnn", "nnnwwnnnw", "wnnwwnnnn", "nnwwwnnnn", "nnnwnnwnw", "wnnwnnwnn", "nnwwnnwnn",
+                "wnnnnwnnw", "nnwnnwnnw", "wnwnnwnnn", "nnnnwwnnw", "wnnnwwnnn", "nnwnwwnnn", "nnnnnwwnw", "wnnnnwwnn", "nnwnnwwnn", "nnnnwwwnn",
+                "wnnnnnnww", "nnwnnnnww", "wnwnnnnwn", "nnnnwnnww", "wnnnwnnwn", "nnwnwnnwn", "nnnnnnwww", "wnnnnnwwn", "nnwnnnwwn", "nnnnwnwwn",
+                "wwnnnnnnw", "nwwnnnnnw", "wwwnnnnnn", "nwnnwnnnw", "wwnnwnnnn", "nwwnwnnnn",
+                "nwnnnnwnw", "wwnnnnwnn", "nwwnnnwnn", "nwnwnwnnn", "nwnwnnnwn", "nwnnnwnwn", "nnnwnwnwn", "nwnnwnwnn"
+            };
+
+            public static bool[] Code39(string text)
+            {
+                var t = (text ?? "").ToUpperInvariant();
+                foreach (var ch in t) if (Alphabet.IndexOf(ch) < 0 || ch == '*') throw new ArgumentException("Code 39 supports 0-9 A-Z - . space $ / + % (got '" + ch + "').");
+                var bits = new List<bool>();
+                foreach (var ch in "*" + t + "*")
+                {
+                    var pat = C39[Alphabet.IndexOf(ch)];
+                    for (int i = 0; i < 9; i++)
+                    {
+                        bool bar = i % 2 == 0; int w = pat[i] == 'w' ? 3 : 1;
+                        for (int k = 0; k < w; k++) bits.Add(bar);
+                    }
+                    bits.Add(false);   // inter-character gap
+                }
+                bits.RemoveAt(bits.Count - 1);
+                return bits.ToArray();
+            }
         }
 
         // =================================================================== Code 128

@@ -216,6 +216,7 @@ namespace KSC.Excel.Engine
                         default: return Jalali.DayNames[(int)dt.DayOfWeek];
                     }
                 }
+                case "urlenc": case "urlencode": return Uri.EscapeDataString(ToDisplay(v));
                 case "fadigits": case "fanum":
                     return ToPersianDigits(ToDisplay(v));
                 case "format":

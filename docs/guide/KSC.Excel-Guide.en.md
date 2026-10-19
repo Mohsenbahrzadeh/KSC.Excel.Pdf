@@ -231,6 +231,10 @@ In a right-to-left sheet the Right arrow moves to the previous column (as in Exc
 ### 4.8 Autosave & moving templates
 A draft of every change is kept in the browser and offered back after an accidental close. Real saving is **Save** to the server. **Export/Import JSON** moves templates between environments. `?t=Invoice` opens a template directly.
 
+### 4.9 Template history
+
+With the default file store every save keeps the replaced version in `ExcelTemplates/.history/<name>/` (the last 50; `FileTemplateStore.MaxVersions`, 0 = off). **History** in the top bar lists them (time, size); *Open* puts a version into the designer, *Save* makes it current - the version it replaces goes into the history too, so nothing is ever lost, and a deleted template can still be restored. Custom stores opt in by implementing `IVersionedTemplateStore` (`ListVersions`, `GetVersion`); the button only appears when the store supports it.
+
 ---
 
 ## 5. Tutorial: build an invoice
@@ -405,6 +409,10 @@ They need the whole collection, so they are not available in streaming mode (the
 
 Report parameters of type **`jdate`** accept Jalali text from the designer default or from code: `new Dictionary<string, object> { ["From"] = "1404/01/01" }`; the template sees a real date (`{{$p.From|fa}}`, SQL `@From`).
 
+### 6.10 Combo charts
+
+In the chart dialog every series has its own **type** (column / line / area) and a **secondary axis** check box: columns for amounts plus a line for a percentage on the right-hand axis. Works in `.xlsx` (verified in Excel: one column series on the primary axis, one line series on the secondary axis) and in PDF. In JSON: `{ "values": "C9:C9", "type": "line", "secondary": true }`. Horizontal bar and pie charts ignore the per-series type.
+
 ---
 
 ## 7. Developer guide — .NET 8/10
@@ -535,6 +543,59 @@ Assert.Empty(wb.Warnings);                       // a warning-free template
 var bytes = XlsxWriter.ToBytes(wb);              // inspect with ZipArchive if needed
 ```
 
+### 7.9 Other output formats: Word, CSV, HTML, PNG
+
+```csharp
+return this.ReportFile("Invoice", model, ReportFormat.Docx);        // ASP.NET Core:  xlsx | pdf | csv | docx | html | png
+return this.Report("Invoice", model, ReportFormat.Csv);             // MVC 5
+var file = svc.Export(options, "Invoice", model, null, ReportFormat.Docx);   // bytes + ContentType + Extension, anywhere
+```
+
+| Format | What you get | Notes |
+|---|---|---|
+| `Xlsx` | the Excel file | |
+| `Pdf`, `Png` | PDF / one page as image (`page` argument) | need `o.UsePdf()` |
+| `Csv` | one sheet (`page` = sheet number), UTF-8 with BOM, quoted, **formula-injection safe** (`=`, `+`, `-`, `@` text gets a `'`) | Persian opens correctly in Excel |
+| `Docx` | Word document: one table per sheet, merged cells, fills, borders, fonts, RTL, barcode/logo images, page size/orientation | no Word needed; charts are not included; verified by opening in real Word |
+| `Html` | stand-alone HTML page (all sheets, direction from the sheet) | |
+
+### 7.10 Report server, parameters and drill-down
+
+Publish reports and users get a page with a **parameter form**, an HTML or PDF view and download buttons, without writing a controller:
+
+```csharp
+builder.Services.AddKscExcel(o =>
+{
+    o.UsePdf();
+    o.AddReport("Sales", p => repo.Sales((DateTime)p["From"], (double)p["Min"]), title: "گزارش فروش");   // data = code that receives the typed parameters
+    o.AddReport("Customer", p => repo.Customer((string)p["Id"]));
+});
+app.MapKscExcelReports("/reports").RequireAuthorization();           // MVC 5: routes.MapKscExcelReports(); KscExcel.AuthorizeReports = ctx => ...
+```
+
+- `/reports` lists the registered reports. `/reports/Sales?p_From=2025-03-21&p_Min=100` shows one (**query names are `p_<ParameterName>`**). Parameters come from the template's *Data sets & parameters* tab: types `text`, `number`, `date`, **`jdate`**, `bool`; a drop-down appears when the parameter has **Options** (`A|B|C` or `a:Alpha|b:Beta`).
+- `?format=pdf|xlsx|docx|csv|html|png` returns the file (pdf/png/html open in the browser, the rest download; add `&download=1` to force a download); `?view=pdf` shows the PDF inside the page.
+- **Drill-down:** a cell link `report:Customer?Id={{CustomerId|urlenc}}` becomes `/reports/Customer?p_Id=...`: click a row of a summary report to open the detail report. Use `|urlenc` for every value in the link.
+- In your own pages: `@await Component.InvokeAsync("KscExcelViewer", new { ..., showParameters = true })` (also `KscPdfViewer`; MVC: `Html.KscExcelViewer(..., showParameters: true)`) draws the same form above the viewer; read the chosen values in the action with `this.GetReportParameters("Sales")`.
+- Safety: only reports registered in code can be run (a template name in the URL does nothing); parameters are typed and ignored when invalid; unexpected errors show a generic message and go to `o.OnReportError`. **Reports expose your data: protect the route.**
+
+### 7.11 Scheduling and e-mail
+
+```csharp
+builder.Services.AddKscExcelScheduler(s => s
+    .UseSmtp(new SmtpOptions { Host = "smtp.example.com", Port = 587, User = "...", Password = "...", From = "reports@example.com" })
+    .Add(new ReportJob
+    {
+        Name = "DailySales", Report = "Sales", Format = ReportFormat.Pdf,
+        Schedule = ReportSchedule.Daily(TimeSpan.FromHours(7)),
+        ParameterFactory = now => new Dictionary<string, object> { ["From"] = now.Date.AddDays(-1) },     // "yesterday"
+        To = { "manager@example.com" }, Subject = "Sales report", SaveToFolder = @"D:\Reports"
+    }));
+// MVC 5 / any host:  KscExcel.StartScheduler(s => ...);   or  new ReportScheduler(options, service).Add(...).Start();
+```
+
+Schedules (server local time): `Daily`, `Weekly(DayOfWeek, time)`, `Monthly(day, time)` (clamped: 31 = last day), **`MonthlyJalali(day, time)`** (Persian calendar), `EveryMinutes(n)`. A job that was missed (server down) runs **once**, never as a burst; a run still in progress is not started twice; failures are reported to `scheduler.OnRun` and never stop other jobs. Sinks: e-mail (SMTP, attachment), folder, or your own `IReportSink`. `RunNow("DailySales")` runs a job on demand. The timer lives inside the application: if the host recycles or sleeps (IIS idle time-out) use a service/Job runner that calls `RunDueJobs()`.
+
 ---
 
 ## 8. Developer guide — .NET Framework (MVC 5)
@@ -646,6 +707,7 @@ Select a cell, set **Barcode** in the Cell panel (`QR Code`, `QR Code (L)`, `QR 
 
 - **QR:** byte mode (UTF-8, so Persian works), versions 1-10 (about 270 bytes at level L), ECC L/M/Q/H (`qr:L`, `qr:M`, `qr:Q`, `qr:H`; default M). Verified against an independent decoder in the test-suite.
 - **Code 128:** printable ASCII; digit-only values of even length use the compact set C automatically.
+- **EAN-13 / EAN-8** (`ean13`, `ean8`): digits; give 12 (7) digits and the check digit is added, or 13 (8) digits with a valid check digit. **Code 39** (`code39`): `0-9 A-Z - . space $ / + %`. All verified with an independent decoder. (PDF417 and Data Matrix are not included.)
 - Text that cannot be encoded produces a warning and no image (the rest of the report still renders).
 - Template JSON: `{ "r": 14, "c": 1, "v": "{{Number}}", "bc": "qr" }`. Barcode cells are not available for the streaming writer.
 
@@ -870,7 +932,7 @@ Tests validate the xlsx package structure with `XDocument`; final validity was c
 
 **Not available (by design of the grid engine):** *sub-reports as separate templates* - use nested bands plus several data sets (they cover master/detail/detail); free-positioned report objects outside the cell grid.
 
-**Also done:** multi-level groups with SUBTOTAL, calculated columns, Jalali calendar functions, PDF password/permissions.
+**Also done:** CSV/Word/HTML/PNG outputs, report server with parameter forms and drill-down, scheduler + e-mail, template history, combo charts, EAN/Code 39 barcodes, multi-level groups with SUBTOTAL, calculated columns, Jalali calendar functions, PDF password/permissions.
 
 **Next:** OData/GraphQL helpers, chart import, template versioning, NuGet publishing, streaming for totals above the table, combo charts, EAN-13/Code 39/PDF417 barcodes.
 

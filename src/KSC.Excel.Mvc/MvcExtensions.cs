@@ -94,6 +94,22 @@ namespace KSC.Excel.Mvc
 
     public static class ControllerExtensions
     {
+        /// <summary><c>return this.Report("Invoice", model, ReportFormat.Docx);</c> - xlsx, pdf, csv, docx, html or png (pdf/png need <c>o.UsePdf()</c>).</summary>
+        public static ActionResult Report(this Controller controller, string templateName, object data, ReportFormat format, string fileName = null, System.Collections.Generic.IDictionary<string, object> parameters = null, int page = 1)
+        {
+            var f = KscExcel.Service.Export(KscExcel.Options, templateName, data, parameters, format, page);
+            return new FileContentResult(f.Bytes, f.ContentType) { FileDownloadName = ReportExport.FileName(fileName ?? templateName, f.Extension) };
+        }
+
+        /// <summary>Typed report parameters from the query string (<c>?p_From=2025-01-01</c>) for the template's declared parameters.</summary>
+        public static System.Collections.Generic.Dictionary<string, object> GetReportParameters(this Controller controller, string templateName)
+        {
+            var tpl = KscExcel.Service.GetTemplate(templateName);
+            var q = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string key in controller.Request.QueryString.AllKeys) if (key != null) q[key] = controller.Request.QueryString[key];
+            return ReportParameters.FromQuery(tpl, q);
+        }
+
         /// <summary>One-liner: <c>return this.Pdf("Invoice", model, "invoice.pdf");</c> (needs <c>o.UsePdf()</c> from KSC.Excel.Pdf).</summary>
         public static PdfResult Pdf(this Controller controller, string templateName, object data, string fileName = null, System.Collections.Generic.IDictionary<string, object> parameters = null, bool inline = false)
             => new PdfResult(templateName, data, fileName, parameters, inline);

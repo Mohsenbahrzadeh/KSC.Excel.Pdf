@@ -16,4 +16,8 @@ template JSON compatibility is governed by `schemaVersion`.
 - Hosts: ASP.NET Core 8/10, ASP.NET MVC 5 (.NET Framework 4.7.2+/4.8, verified on IIS Express), Windows desktop.
 - Multi-level grouping wizard with `SUBTOTAL` totals, group/sort by expression, calculated columns (`RUNSUM`, `PCT`, `PREV`, `DIFF`, `RANK`, `MOVAVG`), Jalali calendar functions/filters and `jdate` parameters.
 - PDF password protection and permissions (AES-256).
+- Outputs: CSV, Word (docx), stand-alone HTML, PNG; `ReportFile` / `Report` one-liners.
+- **Report server** (`AddReport`, `MapKscExcelReports`): parameter forms (text/number/date/jdate/bool/drop-down), HTML/PDF view, downloads, drill-down links (`report:Name?Id={{Id|urlenc}}`).
+- **Scheduler** (`ReportScheduler`): daily/weekly/monthly/Jalali-monthly/every-N-minutes, e-mail (SMTP) and folder delivery.
+- Template **history** (restore earlier versions), **combo charts** (column + line, secondary axis), EAN-13 / EAN-8 / Code 39 barcodes.
 - Complete English and Persian guides.

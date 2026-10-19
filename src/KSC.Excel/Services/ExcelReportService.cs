@@ -101,7 +101,7 @@ namespace KSC.Excel.Services
             MaxRows = _opt.MaxRows, MaxCells = _opt.MaxCells, Parameters = parameters,
             AllowSql = _opt.AllowSql, SkipSql = preview && !_opt.AllowSql, Preview = preview, ConnectionFactory = _opt.OpenFactory,
             SqlTimeoutSeconds = _opt.SqlCommandTimeoutSeconds, SqlMaxRows = _opt.SqlMaxRows,
-            Filters = _opt.Filters, Functions = _opt.Functions, Providers = _opt.Providers, Endpoints = _opt.Endpoints
+            Filters = _opt.Filters, Functions = _opt.Functions, Providers = _opt.Providers, Endpoints = _opt.Endpoints, ReportLinkBase = _opt.Reports.Count > 0 ? _opt.ReportsPath : null
         };
 
         public byte[] Render(string templateName, object data, IDictionary<string, object> parameters)

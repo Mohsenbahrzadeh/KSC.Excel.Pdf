@@ -46,11 +46,13 @@ internal sealed class ChartPainter
         canvas.DrawRect(box, bg); canvas.DrawRect(box, border);
 
         var cats = ch.Categories != null ? Read(ch.Categories).Select(Label).ToList() : new List<string>();
-        var series = ch.SeriesValues.Select((v, i) => new
+        var series = ch.SeriesValues.Select((v, i) => new Ser
         {
             Name = ch.SeriesNameIsRef[i] ? string.Concat(Read(ch.SeriesNames[i]).Select(Label)) : ch.SeriesNames[i],
             Vals = Read(v).Select(Num).ToList(),
-            Color = ParseColor(ch.SeriesColors[i], i)
+            Color = ParseColor(ch.SeriesColors[i], i),
+            Kind = SeriesKind(ch, i),
+            Sec = i < ch.SeriesSecondary.Count && ch.SeriesSecondary[i] && SeriesKind(ch, i) != "pie"
         }).ToList();
         int n = series.Max(s => s.Vals.Count);
         if (n == 0) return;
@@ -74,13 +76,19 @@ internal sealed class ChartPainter
 
         if (type == "pie") { DrawPie(canvas, series[0].Vals, new SKRect(left, top, right, bottom)); return; }
 
-        // value axis
-        double max = Math.Max(1e-9, ch.Def.Stacked ? Enumerable.Range(0, n).Max(i => series.Sum(s => i < s.Vals.Count ? Math.Max(0, s.Vals[i]) : 0)) : series.Max(s => s.Vals.DefaultIfEmpty(0).Max()));
-        double min = Math.Min(0, series.Min(s => s.Vals.DefaultIfEmpty(0).Min()));
-        var (step, top2) = Nice(min, max);
-        float labelW = 38, labelH = 18;
+        // value axes (primary; optional secondary on the right for combo charts)
         bool horiz = type == "bar";
-        var plot = new SKRect(left + (horiz ? 56 : labelW), top + 4, right - 4, bottom - labelH);
+        var prim = series.Where(s => !s.Sec).ToList(); if (prim.Count == 0) prim = series;
+        var secs = horiz || prim == series ? new List<Ser>() : series.Where(s => s.Sec).ToList();
+        bool stackPrim = ch.Def.Stacked;
+        double max = Math.Max(1e-9, stackPrim ? Enumerable.Range(0, n).Max(i => prim.Where(s => s.Kind != "line").Sum(s => i < s.Vals.Count ? Math.Max(0, s.Vals[i]) : 0)) : prim.Max(s => s.Vals.DefaultIfEmpty(0).Max()));
+        if (stackPrim) max = Math.Max(max, prim.Max(s => s.Vals.DefaultIfEmpty(0).Max()));
+        double min = Math.Min(0, prim.Min(s => s.Vals.DefaultIfEmpty(0).Min()));
+        var (step, top2) = Nice(min, max);
+        double max2 = secs.Count > 0 ? Math.Max(1e-9, secs.Max(s => s.Vals.DefaultIfEmpty(0).Max())) : 1, min2 = secs.Count > 0 ? Math.Min(0, (double)secs.Min(s => s.Vals.DefaultIfEmpty(0).Min())) : 0;
+        var (step2, top22) = Nice(min2, max2);
+        float labelW = 38, labelH = 18;
+        var plot = new SKRect(left + (horiz ? 56 : labelW), top + 4, right - 4 - (secs.Count > 0 ? 34 : 0), bottom - labelH);
         if (plot.Width < 20 || plot.Height < 20) return;
 
         using var gridP = new SKPaint { Color = new SKColor(0xE0, 0xE0, 0xE0), StrokeWidth = 0.4f, Style = SKPaintStyle.Stroke };
@@ -88,6 +96,11 @@ internal sealed class ChartPainter
         using var axisPaint = new SKPaint { Color = new SKColor(0x59, 0x59, 0x59), IsAntialias = true };
         double span = top2 - min;
         float V(double v) => horiz ? plot.Left + (float)((v - min) / span) * plot.Width : plot.Bottom - (float)((v - min) / span) * plot.Height;
+        double span2 = Math.Max(1e-9, top22 - min2);
+        float V2(double v) => plot.Bottom - (float)((v - min2) / span2) * plot.Height;
+        if (secs.Count > 0)
+            for (double t = min2; t <= top22 + step2 / 2; t += step2)
+                canvas.DrawText(t.ToString("#,##0.##"), plot.Right + 4, V2(t) + 3, axisFont, axisPaint);
         for (double t = min; t <= top2 + step / 2; t += step)
         {
             float p = V(t);
@@ -110,17 +123,18 @@ internal sealed class ChartPainter
         }
 
         double baseV = Math.Max(0, min);
-        if (type is "column" or "bar")
+        var colSeries = series.Where(s => s.Kind is "column" or "bar").ToList();
+        if (colSeries.Count > 0)
         {
-            int k = ch.Def.Stacked ? 1 : series.Count;
+            int k = ch.Def.Stacked ? 1 : colSeries.Count;
             float bw = Math.Max(1, slot * 0.72f / k);
             for (int i = 0; i < n; i++)
             {
                 double acc = 0;
-                for (int s = 0; s < series.Count; s++)
+                for (int s = 0; s < colSeries.Count; s++)
                 {
-                    double v = i < series[s].Vals.Count ? series[s].Vals[i] : 0;
-                    using var fp = new SKPaint { Color = series[s].Color, Style = SKPaintStyle.Fill, IsAntialias = true };
+                    double v = i < colSeries[s].Vals.Count ? colSeries[s].Vals[i] : 0;
+                    using var fp = new SKPaint { Color = colSeries[s].Color, Style = SKPaintStyle.Fill, IsAntialias = true };
                     double from = ch.Def.Stacked ? acc : baseV, to = ch.Def.Stacked ? acc + v : v; acc += v;
                     float off = ch.Def.Stacked ? -bw / 2 : (s - k / 2f) * bw;
                     SKRect r = horiz ? new SKRect(V(Math.Min(from, to)), C(i) + off, V(Math.Max(from, to)), C(i) + off + bw)
@@ -130,16 +144,17 @@ internal sealed class ChartPainter
                 }
             }
         }
-        else
         {
-            foreach (var s in series)
+            foreach (var s in series.Where(x => x.Kind is "line" or "area"))
             {
+                Func<double, float> VV = s.Sec ? V2 : V;
+                double baseLine = s.Sec ? Math.Max(0, min2) : baseV;
                 using var lp = new SKPaint { Color = s.Color, StrokeWidth = 1.6f, Style = SKPaintStyle.Stroke, IsAntialias = true };
                 var path = new SKPath();
-                for (int i = 0; i < s.Vals.Count; i++) { var pt = new SKPoint(C(i), V(s.Vals[i])); if (i == 0) path.MoveTo(pt); else path.LineTo(pt); }
-                if (type == "area")
+                for (int i = 0; i < s.Vals.Count; i++) { var pt = new SKPoint(C(i), VV(s.Vals[i])); if (i == 0) path.MoveTo(pt); else path.LineTo(pt); }
+                if (s.Kind == "area")
                 {
-                    var area = new SKPath(path); area.LineTo(C(s.Vals.Count - 1), V(baseV)); area.LineTo(C(0), V(baseV)); area.Close();
+                    var area = new SKPath(path); area.LineTo(C(s.Vals.Count - 1), VV(baseLine)); area.LineTo(C(0), VV(baseLine)); area.Close();
                     using var ap = new SKPaint { Color = s.Color.WithAlpha(110), Style = SKPaintStyle.Fill, IsAntialias = true };
                     canvas.DrawPath(area, ap);
                 }
@@ -147,11 +162,22 @@ internal sealed class ChartPainter
                 using var dot = new SKPaint { Color = s.Color, Style = SKPaintStyle.Fill, IsAntialias = true };
                 for (int i = 0; i < s.Vals.Count; i++)
                 {
-                    canvas.DrawCircle(C(i), V(s.Vals[i]), 2.2f, dot);
-                    if (ch.Def.ShowDataLabels) canvas.DrawText(s.Vals[i].ToString("#,##0.##"), C(i) - 6, V(s.Vals[i]) - 4, axisFont, axisPaint);
+                    canvas.DrawCircle(C(i), VV(s.Vals[i]), 2.2f, dot);
+                    if (ch.Def.ShowDataLabels) canvas.DrawText(s.Vals[i].ToString("#,##0.##"), C(i) - 6, VV(s.Vals[i]) - 4, axisFont, axisPaint);
                 }
             }
         }
+    }
+
+    sealed class Ser { public string Name = ""; public List<double> Vals = new(); public SKColor Color; public string Kind = "column"; public bool Sec; }
+
+    /// <summary>The drawing kind of series <paramref name="i"/>: its own Type in a combo chart, otherwise the chart's type.</summary>
+    static string SeriesKind(RenderedChart ch, int i)
+    {
+        var type = (ch.Def.Type ?? "column").ToLowerInvariant();
+        if (type == "pie" || type == "bar") return type;
+        var t = i < ch.SeriesTypes.Count ? (ch.SeriesTypes[i] ?? "").ToLowerInvariant() : "";
+        return t is "column" or "line" or "area" ? t : type;
     }
 
     static (double step, double top) Nice(double min, double max)

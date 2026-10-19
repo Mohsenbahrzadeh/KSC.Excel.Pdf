@@ -174,6 +174,7 @@ namespace KSC.Excel.Preview
         {
             u = (u ?? "").Trim();
             if (u.StartsWith("#", StringComparison.Ordinal)) return "javascript:void(0)";
+            if (u.StartsWith("/", StringComparison.Ordinal) && !u.StartsWith("//", StringComparison.Ordinal) && !u.StartsWith("/\\", StringComparison.Ordinal)) return u;   // same-site link (report drill-down)
             return u.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || u.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || u.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ? u : "about:blank";
         }
 

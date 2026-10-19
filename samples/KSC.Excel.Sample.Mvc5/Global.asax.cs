@@ -21,6 +21,7 @@ namespace KSC.Excel.Sample.Mvc5
                 o.UsePdf();                                // PDF button in the designer + this.Pdf / Html.KscPdfViewer
 #endif
                 o.AddModel<Invoice>("Invoice");
+                o.AddReport("Invoice", p => Invoice.Demo(), title: "فاکتور نمونه");   // report server (/reports)
             });
             // The designer can write templates: in a real application require a login / role here.
             // (Without it the designer is open only while <compilation debug="true"> is set.)
@@ -29,6 +30,7 @@ namespace KSC.Excel.Sample.Mvc5
             var routes = RouteTable.Routes;
             routes.MapKscExcelDesigner();      // /excel-designer
             routes.MapKscExcelDownloads();     // links used by the viewers
+            routes.MapKscExcelReports();       // report server: /reports  (restrict with KscExcel.AuthorizeReports)
             routes.MapRoute("Default", "{controller}/{action}/{id}", new { controller = "Home", action = "Index", id = UrlParameter.Optional });
         }
     }

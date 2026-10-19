@@ -35,6 +35,7 @@ public static class KscExcelExtensions
         services.TryAddSingleton<IExcelReportService>(sp => new ExcelReportService(sp.GetRequiredService<KscExcelOptions>(), sp.GetRequiredService<ITemplateStore>()));
         services.TryAddSingleton<DesignerHost>(sp => new DesignerHost(sp.GetRequiredService<KscExcelOptions>(), sp.GetRequiredService<IExcelReportService>()));
         services.TryAddSingleton<DownloadStore>();
+        services.TryAddSingleton<ReportServer>(sp => new ReportServer(sp.GetRequiredService<KscExcelOptions>(), sp.GetRequiredService<IExcelReportService>()));
 
         // make the ViewComponent discoverable even if the app only references this package indirectly
         services.AddMvcCore().ConfigureApplicationPartManager(m =>
@@ -98,6 +99,68 @@ public static class KscExcelExtensions
         endpoints.MapMethods(pattern, new[] { "GET" }, Handle).ExcludeFromDescription();
 
         return endpoints.MapMethods(pattern + "/{**path}", new[] { "GET", "POST", "PUT", "DELETE" }, Handle).ExcludeFromDescription();
+    }
+
+    /// <summary>
+    /// Runs scheduled reports inside the application (hosted service): <c>services.AddKscExcelScheduler(s =&gt; s.UseSmtp(smtp).Add(new ReportJob { ... }))</c>.
+    /// Reports must be registered with <c>options.AddReport</c>. The timer lives as long as the app: use a real job runner if the app can be recycled at night.
+    /// </summary>
+    public static IServiceCollection AddKscExcelScheduler(this IServiceCollection services, Action<ReportScheduler> configure)
+    {
+        services.TryAddSingleton(sp =>
+        {
+            var s = new ReportScheduler(sp.GetRequiredService<KscExcelOptions>(), sp.GetRequiredService<IExcelReportService>());
+            configure(s);
+            return s;
+        });
+        services.AddHostedService<ReportSchedulerService>();
+        return services;
+    }
+
+    sealed class ReportSchedulerService : IHostedService
+    {
+        readonly ReportScheduler _scheduler;
+        public ReportSchedulerService(ReportScheduler scheduler) { _scheduler = scheduler; }
+        public Task StartAsync(CancellationToken cancellationToken) { _scheduler.Start(); return Task.CompletedTask; }
+        public Task StopAsync(CancellationToken cancellationToken) { _scheduler.Stop(); return Task.CompletedTask; }
+    }
+
+    /// <summary>
+    /// Maps the report server: <c>GET /reports</c> (catalog of reports registered with <c>options.AddReport</c>) and
+    /// <c>GET /reports/{name}</c> (parameter form, HTML/PDF view, <c>?format=pdf|xlsx|docx|csv|html|png</c> downloads).
+    /// Chain <c>.RequireAuthorization()</c>: reports expose your data.
+    /// </summary>
+    public static IEndpointConventionBuilder MapKscExcelReports(this IEndpointRouteBuilder endpoints, string pattern = "/reports")
+    {
+        pattern = "/" + pattern.Trim('/');
+        var server = endpoints.ServiceProvider.GetRequiredService<ReportServer>();
+        var options = endpoints.ServiceProvider.GetRequiredService<KscExcelOptions>();
+        options.ReportsPath = pattern;
+
+        async Task Handle(HttpContext ctx)
+        {
+            var req = new ReportRequest { Name = (string?)ctx.Request.RouteValues["name"], BasePath = ctx.Request.PathBase + pattern };
+            foreach (var kv in ctx.Request.Query) req.Query[kv.Key] = kv.Value.ToString();
+            var res = server.Handle(req);
+            ctx.Response.StatusCode = res.Status;
+            ctx.Response.ContentType = res.ContentType;
+            foreach (var h in res.Headers) ctx.Response.Headers[h.Key] = h.Value;
+            await ctx.Response.Body.WriteAsync(res.Body, ctx.RequestAborted);
+        }
+
+        var group = new List<IEndpointConventionBuilder>
+        {
+            endpoints.MapGet(pattern, Handle).ExcludeFromDescription(),
+            endpoints.MapGet(pattern + "/{name}", Handle).ExcludeFromDescription()
+        };
+        return new CompositeEndpointConventionBuilder(group);
+    }
+
+    sealed class CompositeEndpointConventionBuilder : IEndpointConventionBuilder
+    {
+        readonly List<IEndpointConventionBuilder> _inner;
+        public CompositeEndpointConventionBuilder(List<IEndpointConventionBuilder> inner) { _inner = inner; }
+        public void Add(Action<EndpointBuilder> convention) { foreach (var b in _inner) b.Add(convention); }
     }
 
     /// <summary>Maps the one-time download links created by <c>&lt;vc:ksc-excel-viewer&gt;</c> (required when you use the viewer).</summary>

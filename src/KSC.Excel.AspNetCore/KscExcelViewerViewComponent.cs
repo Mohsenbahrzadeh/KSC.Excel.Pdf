@@ -29,14 +29,19 @@ public sealed class KscExcelViewerViewComponent : ViewComponent
     /// <param name="showDownload">Show the download button.</param>
     /// <param name="showHeaders">Show Excel-like A,B,C / 1,2,3 headers.</param>
     /// <param name="downloadLabel">Button text (default is Persian when the designer language is fa).</param>
-    public IViewComponentResult Invoke(string template, object? data, string? downloadName = null, bool showDownload = true, bool showHeaders = false, string? downloadLabel = null)
+    public IViewComponentResult Invoke(string template, object? data, string? downloadName = null, bool showDownload = true, bool showHeaders = false, string? downloadLabel = null, bool showParameters = false, IDictionary<string, object>? parameters = null)
     {
         var tpl = _svc.GetTemplate(template);
-        var wb = _svc.Bind(tpl, data);
+        var query = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in HttpContext.Request.Query) query[kv.Key] = kv.Value.ToString();
+        var pars = ReportParameters.FromQuery(tpl, query);
+        if (parameters != null) foreach (var kv in parameters) pars[kv.Key] = kv.Value;
+        var wb = _svc.Bind(tpl, data!, pars);
         var html = Preview.HtmlPreviewRenderer.Render(wb, new Preview.PreviewOptions { MaxRows = _options.PreviewMaxRows, ShowHeaders = showHeaders });
 
         var sb = new System.Text.StringBuilder();
         sb.Append("<div class=\"ksc-excel-viewer\">");
+        if (showParameters) sb.Append(ViewerMarkup.ParameterForm(tpl, query, HttpContext.Request.PathBase + HttpContext.Request.Path, _options.Language == "en"));
         if (showDownload)
         {
             var bytes = Writer.XlsxWriter.ToBytes(wb);

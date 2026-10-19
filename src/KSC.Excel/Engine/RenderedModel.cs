@@ -87,6 +87,8 @@ namespace KSC.Excel.Engine
         public List<string> SeriesNames = new List<string>();   // literal text or a reference
         public List<bool> SeriesNameIsRef = new List<bool>();
         public List<string> SeriesColors = new List<string>();
+        public List<string> SeriesTypes = new List<string>();
+        public List<bool> SeriesSecondary = new List<bool>();
     }
 
     public sealed class RenderedImage
@@ -133,6 +135,8 @@ namespace KSC.Excel.Engine
         public bool SkipSql;
         /// <summary>Designer preview: failures of external data sets (REST/provider) become warnings so sample data can be used.</summary>
         public bool Preview;
+        /// <summary>Base URL for cell links of the form <c>report:Name?Param=value</c> (null = such links are left as they are).</summary>
+        public string ReportLinkBase;
         public int SqlTimeoutSeconds = 30;
         public int SqlMaxRows = 100000;
         /// <summary>SQL data sets are read lazily (one pass per use) instead of being loaded into memory. Used by streaming.</summary>

@@ -29,9 +29,14 @@ public sealed class KscPdfViewerViewComponent : ViewComponent
     /// <param name="height">CSS height of the viewer, e.g. "80vh" or "700px".</param>
     /// <param name="showToolbar">Show Download / Print buttons.</param>
     /// <param name="showExcel">Also offer the same report as an .xlsx download.</param>
-    public IViewComponentResult Invoke(string template, object? data, IDictionary<string, object>? parameters = null, string? downloadName = null, string height = "80vh", bool showToolbar = true, bool showExcel = false)
+    public IViewComponentResult Invoke(string template, object? data, IDictionary<string, object>? parameters = null, string? downloadName = null, string height = "80vh", bool showToolbar = true, bool showExcel = false, bool showParameters = false)
     {
-        var wb = _svc.Bind(_svc.GetTemplate(template), data!, parameters!);
+        var tpl = _svc.GetTemplate(template);
+        var query = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in HttpContext.Request.Query) query[kv.Key] = kv.Value.ToString();
+        var pars = ReportParameters.FromQuery(tpl, query);
+        if (parameters != null) foreach (var kv in parameters) pars[kv.Key] = kv.Value;
+        var wb = _svc.Bind(tpl, data!, pars);
         var user = HttpContext.User.Identity?.Name;
         var baseName = downloadName ?? template;
         string Url(string token) => HttpContext.Request.PathBase + "/" + _options.DownloadPath.Trim('/') + "/" + token;
@@ -42,6 +47,7 @@ public sealed class KscPdfViewerViewComponent : ViewComponent
         string? xlsxHref = showExcel ? Url(_downloads.Add(Writer.XlsxWriter.ToBytes(wb), ControllerExtensions.EnsureXlsx(baseName), user)) : null;
 
         var html = ViewerMarkup.PdfViewer(inlineHref, pdfHref, xlsxHref, _options.Language == "en", height, showToolbar);
+        if (showParameters) html = ViewerMarkup.ParameterForm(tpl, query, HttpContext.Request.PathBase + HttpContext.Request.Path, _options.Language == "en") + html;
         return new HtmlContentViewComponentResult(new HtmlString(html));
     }
 }

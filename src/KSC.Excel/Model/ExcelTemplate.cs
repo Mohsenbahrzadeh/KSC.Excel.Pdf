@@ -263,6 +263,8 @@ namespace KSC.Excel.Model
         /// <summary>text | number | date | bool</summary>
         public string Type { get; set; } = "text";
         public string Default { get; set; }
+        /// <summary>Choices for a drop-down in the parameter form: "A|B|C" or "value:Label|value2:Label2".</summary>
+        public string Options { get; set; }
     }
 
     public class CondFormatDef
@@ -341,6 +343,10 @@ namespace KSC.Excel.Model
         public string Values { get; set; }
         /// <summary>#RRGGBB (optional).</summary>
         public string Color { get; set; }
+        /// <summary>Combo charts: column, line or area for this series (empty = the chart's type). Ignored for pie and bar (horizontal) charts.</summary>
+        public string Type { get; set; }
+        /// <summary>Plot this series against a second value axis on the right (e.g. a % line over amount columns).</summary>
+        public bool Secondary { get; set; }
     }
 
     /// <summary>A chart bound to cell ranges. Ranges that cover a band grow with the data.</summary>

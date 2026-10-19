@@ -744,38 +744,62 @@ namespace KSC.Excel.Writer
 
             bool pie = type == "pie";
             int count = pie ? 1 : ch.SeriesValues.Count;
-            string grouping = d.Stacked ? "stacked" : "standard";
-            string tag = type == "line" ? "lineChart" : type == "area" ? "areaChart" : pie ? "pieChart" : "barChart";
-            sb.Append("<c:").Append(tag).Append('>');
-            if (tag == "barChart") sb.Append("<c:barDir val=\"").Append(type == "bar" ? "bar" : "col").Append("\"/><c:grouping val=\"").Append(d.Stacked ? "stacked" : "clustered").Append("\"/>");
-            else if (tag != "pieChart") sb.Append("<c:grouping val=\"").Append(grouping).Append("\"/>");
-            sb.Append("<c:varyColors val=\"").Append(pie ? "1" : "0").Append("\"/>");
+            bool horizType = type == "bar";
 
+            // combo: series are grouped by (chart element, axis set); each group becomes one <c:barChart>/<c:lineChart>/<c:areaChart>
+            var groupKeys = new List<string>(); var groupSeries = new Dictionary<string, List<int>>(); bool anySecondary = false;
             for (int i = 0; i < count; i++)
             {
-                var color = StyleBook.Rgb(ch.SeriesColors[i]);
-                color = color != null ? color.Substring(2) : DefaultColors[i % DefaultColors.Length];
-                sb.Append("<c:ser><c:idx val=\"").Append(i).Append("\"/><c:order val=\"").Append(i).Append("\"/><c:tx>");
-                if (ch.SeriesNameIsRef[i]) sb.Append("<c:strRef><c:f>").Append(Xml.Esc(ch.SeriesNames[i])).Append("</c:f></c:strRef>");
-                else sb.Append("<c:v>").Append(Xml.Esc(ch.SeriesNames[i])).Append("</c:v>");
-                sb.Append("</c:tx>");
-                if (!pie)
+                string st = type;
+                if (!pie && !horizType && i < ch.SeriesTypes.Count && !string.IsNullOrEmpty(ch.SeriesTypes[i]))
                 {
-                    if (tag == "lineChart") sb.Append("<c:spPr><a:ln w=\"28575\"><a:solidFill><a:srgbClr val=\"").Append(color).Append("\"/></a:solidFill></a:ln></c:spPr><c:marker><c:symbol val=\"circle\"/><c:size val=\"5\"/></c:marker>");
-                    else sb.Append("<c:spPr><a:solidFill><a:srgbClr val=\"").Append(color).Append("\"/></a:solidFill></c:spPr>");
-                    if (tag == "barChart") sb.Append("<c:invertIfNegative val=\"0\"/>");
+                    var x = ch.SeriesTypes[i].ToLowerInvariant();
+                    if (x == "column" || x == "line" || x == "area") st = x;
                 }
-                if (d.ShowDataLabels) sb.Append("<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/></c:dLbls>");
-                if (ch.Categories != null) sb.Append("<c:cat><c:strRef><c:f>").Append(Xml.Esc(ch.Categories)).Append("</c:f></c:strRef></c:cat>");
-                sb.Append("<c:val><c:numRef><c:f>").Append(Xml.Esc(ch.SeriesValues[i])).Append("</c:f></c:numRef></c:val>");
-                if (tag == "lineChart") sb.Append("<c:smooth val=\"0\"/>");
-                sb.Append("</c:ser>");
+                bool sec = !pie && i < ch.SeriesSecondary.Count && ch.SeriesSecondary[i];
+                anySecondary |= sec;
+                string tg = st == "line" ? "lineChart" : st == "area" ? "areaChart" : pie ? "pieChart" : "barChart";
+                string key = tg + "|" + (sec ? "2" : "1");
+                if (!groupSeries.ContainsKey(key)) { groupSeries[key] = new List<int>(); groupKeys.Add(key); }
+                groupSeries[key].Add(i);
             }
-            if (tag == "barChart") sb.Append("<c:gapWidth val=\"120\"/>").Append(d.Stacked ? "<c:overlap val=\"100\"/>" : "");
-            if (tag == "lineChart") sb.Append("<c:marker val=\"1\"/>");
-            if (tag == "pieChart") sb.Append("<c:firstSliceAng val=\"0\"/>");
-            else sb.Append("<c:axId val=\"111111\"/><c:axId val=\"222222\"/>");
-            sb.Append("</c:").Append(tag).Append('>');
+
+            foreach (var key in groupKeys)
+            {
+                var parts = key.Split('|'); string tag = parts[0]; bool secGroup = parts[1] == "2";
+                string axA = secGroup ? "333333" : "111111", axB = secGroup ? "444444" : "222222";
+                string grouping = d.Stacked && tag != "lineChart" ? "stacked" : "standard";
+                sb.Append("<c:").Append(tag).Append('>');
+                if (tag == "barChart") sb.Append("<c:barDir val=\"").Append(type == "bar" ? "bar" : "col").Append("\"/><c:grouping val=\"").Append(d.Stacked ? "stacked" : "clustered").Append("\"/>");
+                else if (tag != "pieChart") sb.Append("<c:grouping val=\"").Append(grouping).Append("\"/>");
+                sb.Append("<c:varyColors val=\"").Append(pie ? "1" : "0").Append("\"/>");
+
+                foreach (int i in groupSeries[key])
+                {
+                    var color = StyleBook.Rgb(ch.SeriesColors[i]);
+                    color = color != null ? color.Substring(2) : DefaultColors[i % DefaultColors.Length];
+                    sb.Append("<c:ser><c:idx val=\"").Append(i).Append("\"/><c:order val=\"").Append(i).Append("\"/><c:tx>");
+                    if (ch.SeriesNameIsRef[i]) sb.Append("<c:strRef><c:f>").Append(Xml.Esc(ch.SeriesNames[i])).Append("</c:f></c:strRef>");
+                    else sb.Append("<c:v>").Append(Xml.Esc(ch.SeriesNames[i])).Append("</c:v>");
+                    sb.Append("</c:tx>");
+                    if (!pie)
+                    {
+                        if (tag == "lineChart") sb.Append("<c:spPr><a:ln w=\"28575\"><a:solidFill><a:srgbClr val=\"").Append(color).Append("\"/></a:solidFill></a:ln></c:spPr><c:marker><c:symbol val=\"circle\"/><c:size val=\"5\"/></c:marker>");
+                        else sb.Append("<c:spPr><a:solidFill><a:srgbClr val=\"").Append(color).Append("\"/></a:solidFill></c:spPr>");
+                        if (tag == "barChart") sb.Append("<c:invertIfNegative val=\"0\"/>");
+                    }
+                    if (d.ShowDataLabels) sb.Append("<c:dLbls><c:showLegendKey val=\"0\"/><c:showVal val=\"1\"/><c:showCatName val=\"0\"/><c:showSerName val=\"0\"/><c:showPercent val=\"0\"/><c:showBubbleSize val=\"0\"/></c:dLbls>");
+                    if (ch.Categories != null) sb.Append("<c:cat><c:strRef><c:f>").Append(Xml.Esc(ch.Categories)).Append("</c:f></c:strRef></c:cat>");
+                    sb.Append("<c:val><c:numRef><c:f>").Append(Xml.Esc(ch.SeriesValues[i])).Append("</c:f></c:numRef></c:val>");
+                    if (tag == "lineChart") sb.Append("<c:smooth val=\"0\"/>");
+                    sb.Append("</c:ser>");
+                }
+                if (tag == "barChart") sb.Append("<c:gapWidth val=\"120\"/>").Append(d.Stacked ? "<c:overlap val=\"100\"/>" : "");
+                if (tag == "lineChart") sb.Append("<c:marker val=\"1\"/>");
+                if (tag == "pieChart") sb.Append("<c:firstSliceAng val=\"0\"/>");
+                else sb.Append("<c:axId val=\"").Append(axA).Append("\"/><c:axId val=\"").Append(axB).Append("\"/>");
+                sb.Append("</c:").Append(tag).Append('>');
+            }
 
             if (!pie)
             {
@@ -784,6 +808,11 @@ namespace KSC.Excel.Writer
                   .Append("\"/><c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"out\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/><c:crossAx val=\"222222\"/><c:crosses val=\"autoZero\"/><c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/></c:catAx>");
                 sb.Append("<c:valAx><c:axId val=\"222222\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"").Append(horiz ? "b" : "l")
                   .Append("\"/><c:majorGridlines><c:spPr><a:ln w=\"6350\"><a:solidFill><a:srgbClr val=\"D9D9D9\"/></a:solidFill></a:ln></c:spPr></c:majorGridlines><c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"out\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/><c:crossAx val=\"111111\"/><c:crosses val=\"autoZero\"/><c:crossBetween val=\"between\"/></c:valAx>");
+                if (anySecondary)
+                {
+                    sb.Append("<c:catAx><c:axId val=\"333333\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"1\"/><c:axPos val=\"b\"/><c:majorTickMark val=\"none\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/><c:crossAx val=\"444444\"/><c:crosses val=\"autoZero\"/><c:auto val=\"1\"/><c:lblAlgn val=\"ctr\"/><c:lblOffset val=\"100\"/><c:noMultiLvlLbl val=\"0\"/></c:catAx>");
+                    sb.Append("<c:valAx><c:axId val=\"444444\"/><c:scaling><c:orientation val=\"minMax\"/></c:scaling><c:delete val=\"0\"/><c:axPos val=\"r\"/><c:numFmt formatCode=\"General\" sourceLinked=\"1\"/><c:majorTickMark val=\"out\"/><c:minorTickMark val=\"none\"/><c:tickLblPos val=\"nextTo\"/><c:crossAx val=\"333333\"/><c:crosses val=\"max\"/><c:crossBetween val=\"between\"/></c:valAx>");
+                }
             }
             sb.Append("</c:plotArea>");
             if (d.ShowLegend && (pie || count > 1)) sb.Append("<c:legend><c:legendPos val=\"b\"/><c:overlay val=\"0\"/></c:legend>");

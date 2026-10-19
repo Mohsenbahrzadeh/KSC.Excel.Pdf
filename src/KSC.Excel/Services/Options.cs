@@ -110,6 +110,29 @@ namespace KSC.Excel.Services
         /// </summary>
         public Func<KSC.Excel.Engine.RenderedWorkbook, byte[]> PdfExporter { get; set; }
 
+        /// <summary>Renders one page of a bound workbook as PNG (page number is 1-based). Set by <c>options.UsePdf()</c>.</summary>
+        public Func<KSC.Excel.Engine.RenderedWorkbook, int, byte[]> PngExporter { get; set; }
+
+        // ---- report server (see ReportServer) ----
+        internal Dictionary<string, ReportDef> Reports { get; } = new Dictionary<string, ReportDef>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>URL prefix used for drill-down links (<c>report:Name?Id={{Id|urlenc}}</c>) and by the report server. Default "/reports".</summary>
+        public string ReportsPath { get; set; } = "/reports";
+
+        /// <summary>Called when a report of the report server fails unexpectedly (log it; the browser only sees a generic message).</summary>
+        public Action<string, Exception> OnReportError { get; set; }
+
+        /// <summary>
+        /// Publishes a report on the report server: <c>o.AddReport("Invoice", p =&gt; repo.Get((int)p["Id"]))</c>. The stored template of the same
+        /// name is used unless <paramref name="template"/> is given. Anyone who can reach the server URL can run it: protect it like any page.
+        /// </summary>
+        public KscExcelOptions AddReport(string name, Func<IDictionary<string, object>, object> data, string template = null, string title = null)
+        {
+            TemplateNames.Ensure(name);
+            Reports[name] = new ReportDef { Name = name, Template = template, Title = title, Data = data };
+            return this;
+        }
+
         /// <summary>Models whose shape the designer offers as a field tree (and from which sample data is generated).</summary>
         public Dictionary<string, ModelInfo> Models { get; } = new Dictionary<string, ModelInfo>(StringComparer.OrdinalIgnoreCase);
 

@@ -223,6 +223,7 @@ function buildTop() {
     b('primary', 'save', T('save'), onSave), b('', 'eye', T('preview'), onPreview), b('', 'dl', T('download'), onDownload),
     b('', 'open', 'xlsx', importXlsx, T('importXlsx')),
     S.cfg && S.cfg.pdf ? b('', 'dl', 'PDF', onPdf, T('pdf')) : null,
+    S.cfg && S.cfg.versions ? b('', 'undo', T('history'), onHistory, T('historyTip')) : null,
     b('', 'json', '', exportJson, T('exportJson')), b('', 'json', '', importJson, T('importJson')));
   $$('.btn', a).slice(2, 4).forEach(x => x.querySelector('span').remove());
   $$('.btn', a).slice(-2).forEach(x => x.querySelector('span').remove());
@@ -447,7 +448,7 @@ function tabCell(body) {
   body.append(frow(T('value'), ta));
   body.append(frow(T('valueType'), sel([['', T('typeAuto')], ['text', T('typeText')]], c.t || '', (v) => { KXL.mutate(() => { const x = KXL.ensureCell(s.ar, s.ac); if (v) x.t = v; else delete x.t; }); })));
   body.append(frow(T('link'), inp(c.l || '', (v) => { KXL.mutate(() => { const x = KXL.ensureCell(s.ar, s.ac); if (v) x.l = v; else delete x.l; }); G.render(); }, { dir: 'ltr', placeholder: 'https://… | #Sheet2!A1' })));
-  body.append(frow(T('barcode'), sel([['', T('bcNone')], ['qr', T('bcQr')], ['qr:L', T('bcQr') + ' (L)'], ['qr:H', T('bcQr') + ' (H)'], ['code128', T('bcCode128')]], c.bc || '', (v) => { KXL.mutate(() => { const x = KXL.ensureCell(s.ar, s.ac); if (v) x.bc = v; else delete x.bc; }); G.render(); renderRight(); })));
+  body.append(frow(T('barcode'), sel([['', T('bcNone')], ['qr', T('bcQr')], ['qr:L', T('bcQr') + ' (L)'], ['qr:H', T('bcQr') + ' (H)'], ['code128', T('bcCode128')], ['ean13', 'EAN-13'], ['ean8', 'EAN-8'], ['code39', 'Code 39']], c.bc || '', (v) => { KXL.mutate(() => { const x = KXL.ensureCell(s.ar, s.ac); if (v) x.bc = v; else delete x.bc; }); G.render(); renderRight(); })));
   if (c.bc) body.append(el('div', { class: 'help' }, T('bcHelp')));
   body.append(chk(T('rtlText'), styleNow().rtl === true, (v) => G.applyStyle({ rtl: v ? true : undefined })));
   body.append(el('div', { class: 'help' }, T('hintFormula')));
@@ -705,8 +706,10 @@ function chartDialog(idx) {
     const name = el('input', { type: 'text', placeholder: T('seriesName'), value: s.name || '', style: 'flex:1;min-width:0' });
     const vals = el('input', { type: 'text', dir: 'ltr', placeholder: T('seriesValues'), value: s.values || '', style: 'flex:1.3;min-width:0' });
     const c = el('input', { type: 'color', value: s.color || '#2e75b6', style: 'width:36px;height:30px' });
-    const r = { name, vals, c }; rows.push(r);
-    const line = el('div', { style: 'display:flex;gap:6px;margin-bottom:6px;align-items:center' }, name, vals, c, el('button', { class: 'iconbtn', onclick: () => { rows.splice(rows.indexOf(r), 1); line.remove(); } }, '\u2715'));
+    const kind = sel([['', '•'], ['column', T('tColumn')], ['line', T('tLine')], ['area', T('tArea')]], s.type || '', () => {}); kind.title = T('comboType'); kind.style.cssText = 'width:74px';
+    const sec = el('input', { type: 'checkbox', title: T('secondaryAxis') }); sec.checked = !!s.secondary;
+    const r = { name, vals, c, kind, sec }; rows.push(r);
+    const line = el('div', { style: 'display:flex;gap:6px;margin-bottom:6px;align-items:center' }, name, vals, c, kind, sec, el('button', { class: 'iconbtn', onclick: () => { rows.splice(rows.indexOf(r), 1); line.remove(); } }, '\u2715'));
     list.append(line);
   };
   ((old && old.series && old.series.length) ? old.series : [{}]).forEach(addRow);
@@ -717,7 +720,7 @@ function chartDialog(idx) {
     el('button', { class: 'btn', onclick: () => addRow({}) }, '+ ' + T('addSeries')),
     el('div', { style: 'margin-top:10px' }, el('label', { class: 'chk' }, stacked, T('stacked')), el('label', { class: 'chk' }, legend, T('legend')), el('label', { class: 'chk' }, labels, T('dataLabels'))));
   UI.modal({ title: T('addChart'), body, buttons: [{ label: old ? T('ok') : T('add'), primary: true, onclick: () => {
-    const series = rows.filter(r => KXL.parseRange(r.vals.value)).map(r => { const s = { values: r.vals.value.trim().toUpperCase(), color: r.c.value }; if (r.name.value.trim()) { if (KXL.parseRange(r.name.value)) s.nameCell = r.name.value.trim().toUpperCase(); else s.name = r.name.value.trim(); } return s; });
+    const series = rows.filter(r => KXL.parseRange(r.vals.value)).map(r => { const s = { values: r.vals.value.trim().toUpperCase(), color: r.c.value }; if (r.kind.value) s.type = r.kind.value; if (r.sec.checked) s.secondary = true; if (r.name.value.trim()) { if (KXL.parseRange(r.name.value)) s.nameCell = r.name.value.trim().toUpperCase(); else s.name = r.name.value.trim(); } return s; });
     if (!series.length) { KXL.toast(T('seriesValues'), 'err'); return false; }
     const ch = { name: old ? old.name : 'Chart' + (sh.charts.length + 1), type: type.value, title: title.value || undefined, row: Math.max(1, parseInt(row.value) || 1), col: Math.max(1, parseInt(col.value) || 1), width: Math.max(120, parseInt(w.value) || 480), height: Math.max(80, parseInt(h.value) || 288), categories: cats.value.trim() ? cats.value.trim().toUpperCase() : undefined, series, stacked: stacked.checked || undefined, showLegend: legend.checked, showDataLabels: labels.checked || undefined };
     KXL.mutate(() => { if (old) sh.charts[idx] = ch; else sh.charts.push(ch); }); G.render(); S.panelTab = 'images'; renderRight();
@@ -847,6 +850,28 @@ async function openByName(name) {
   catch (e) { KXL.toast(e.message, 'err'); }
 }
 KXL.fn.openByName = openByName;
+
+async function onHistory() {
+  if (!S.savedName) { KXL.toast(T('historyNeedSave'), 'err'); return; }
+  let list;
+  try { list = await KXL.api('GET', 'templates/' + encodeURIComponent(S.savedName) + '/versions'); } catch (e) { KXL.toast(e.message, 'err'); return; }
+  const body = el('div', {}, el('div', { class: 'help' }, T('historyHelp')));
+  if (!list.length) body.append(el('div', { class: 'empty' }, T('historyEmpty')));
+  list.forEach(v => {
+    const when = new Date(v.saved).toLocaleString();
+    body.append(el('div', { class: 'card', style: 'display:flex;align-items:center;gap:8px' },
+      el('div', { style: 'flex:1' }, el('b', {}, when), el('div', { class: 'muted' }, (v.title || '') + ' · ' + Math.max(1, Math.round(v.size / 1024)) + ' KB')),
+      el('button', { class: 'btn primary', onclick: async () => {
+        if (!(await guardDiscard())) return;
+        try {
+          const t = await KXL.api('GET', 'templates/' + encodeURIComponent(S.savedName) + '/versions/' + v.id);
+          const name = S.savedName; KXL.load(t, name); S.dirty = true; KXL.fn.changed(true); KXL.toast(T('historyLoaded'), 'ok');
+          document.querySelector('.modal-back, .overlay, [class*=backdrop]') && document.querySelector('.modal-back, .overlay, [class*=backdrop]').remove();
+        } catch (e) { KXL.toast(e.message, 'err'); }
+      } }, T('historyOpen'))));
+  });
+  UI.modal({ title: T('history'), body, buttons: [{ label: T('close') }] });
+}
 
 async function onPreview() {
   if (S.editing) G.commitEdit();

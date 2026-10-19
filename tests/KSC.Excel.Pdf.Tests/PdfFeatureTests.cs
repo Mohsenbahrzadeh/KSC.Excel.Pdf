@@ -156,6 +156,24 @@ public class PdfFeatureTests
     }
 
     [Fact]
+    public void Combo_chart_with_secondary_axis_renders()
+    {
+        var b = new TemplateBuilder("Ch", "combo");
+        b.Sheet("S", s => { s.Cell("A1", "{{M}}").Cell("B1", "{{Amount}}").Cell("C1", "{{Pct}}"); s.Band("R", "Rows", 1, 1); });
+        var t = b.Build();
+        t.Sheets[0].Charts.Add(new ChartDef { Name = "c", Type = "column", Title = "فروش و درصد رشد", Row = 6, Col = 1, Width = 520, Height = 300, Categories = "A1:A1",
+            Series = { new ChartSeriesDef { Name = "فروش", Values = "B1:B1", Color = "#2E75B6" }, new ChartSeriesDef { Name = "رشد", Values = "C1:C1", Type = "line", Secondary = true, Color = "#C55A11" } } });
+        var data = JObject.Parse("{\"Rows\":[{\"M\":\"فروردین\",\"Amount\":100,\"Pct\":0.1},{\"M\":\"اردیبهشت\",\"Amount\":250,\"Pct\":0.4},{\"M\":\"خرداد\",\"Amount\":180,\"Pct\":0.3},{\"M\":\"تیر\",\"Amount\":320,\"Pct\":0.55}]}");
+        var wb = Svc().Bind(t, data, null);
+        var png = ExcelPdf.RenderPng(wb, 1, 1.5f);
+        using var bmp = SKBitmap.Decode(png);
+        Assert.True(CountColor(bmp, c => c.Red > 170 && c.Green < 120 && c.Blue < 60) > 30, "the orange line should be drawn");
+        Assert.True(CountColor(bmp, c => c.Blue > 150 && c.Red < 80) > 500, "blue columns should be drawn");
+        var dir = Environment.GetEnvironmentVariable("KXL_PDF_PNG_DIR");
+        if (!string.IsNullOrEmpty(dir)) File.WriteAllBytes(Path.Combine(dir, "combo.png"), png);
+    }
+
+    [Fact]
     public void Visual_sample_for_manual_inspection()
     {
         var dir = Environment.GetEnvironmentVariable("KXL_PDF_PNG_DIR");

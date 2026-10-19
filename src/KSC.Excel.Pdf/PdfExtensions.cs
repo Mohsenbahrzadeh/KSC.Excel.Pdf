@@ -8,6 +8,7 @@ public static class PdfExtensions
     public static KscExcelOptions UsePdf(this KscExcelOptions options, PdfOptions? pdf = null)
     {
         options.PdfExporter = wb => ExcelPdf.Render(wb, pdf);
+        options.PngExporter = (wb, page) => ExcelPdf.RenderPng(wb, page, 1.5f, pdf);
         return options;
     }
 

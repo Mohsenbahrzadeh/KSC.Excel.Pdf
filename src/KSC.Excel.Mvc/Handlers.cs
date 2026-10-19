@@ -91,8 +91,53 @@ namespace KSC.Excel.Mvc
         }
     }
 
+    sealed class ReportsRouteHandler : IRouteHandler
+    {
+        readonly string _basePath;
+        public ReportsRouteHandler(string basePath) { _basePath = basePath; }
+        public IHttpHandler GetHttpHandler(RequestContext requestContext) => new ReportsHandler(_basePath, Convert.ToString(requestContext.RouteData.Values["name"]));
+    }
+
+    /// <summary>Serves the report server (System.Web). Map it with <c>routes.MapKscExcelReports()</c>.</summary>
+    sealed class ReportsHandler : IHttpHandler
+    {
+        readonly string _basePath, _name;
+        public ReportsHandler(string basePath, string name) { _basePath = basePath; _name = name; }
+        public bool IsReusable => false;
+
+        public void ProcessRequest(HttpContext context)
+        {
+            var ctx = new HttpContextWrapper(context);
+            if (KscExcel.AuthorizeReports != null && !KscExcel.AuthorizeReports(ctx))
+            {
+                context.Response.StatusCode = (context.User != null && context.User.Identity.IsAuthenticated) ? 403 : 401;
+                context.Response.Write("Not allowed to use the reports.");
+                return;
+            }
+            var req = new KSC.Excel.Services.ReportRequest { Name = string.IsNullOrEmpty(_name) ? null : _name, BasePath = VirtualPathUtility.ToAbsolute("~/" + _basePath.Trim('/')).TrimEnd('/') };
+            foreach (string key in context.Request.QueryString.AllKeys) if (key != null) req.Query[key] = context.Request.QueryString[key];
+            var res = KscExcel.Reports.Handle(req);
+            context.Response.StatusCode = res.Status;
+            context.Response.ContentType = res.ContentType;
+            context.Response.Cache.SetCacheability(HttpCacheability.NoCache);
+            foreach (var h in res.Headers) context.Response.AddHeader(h.Key, h.Value);
+            context.Response.BinaryWrite(res.Body);
+        }
+    }
+
     public static class RouteExtensions
     {
+        /// <summary>
+        /// Maps the report server: <c>/reports</c> (catalog) and <c>/reports/{name}</c> for reports registered with <c>options.AddReport</c>.
+        /// Restrict access with <c>KscExcel.AuthorizeReports</c> (reports expose your data).
+        /// </summary>
+        public static void MapKscExcelReports(this RouteCollection routes, string url = "reports")
+        {
+            url = url.Trim('/');
+            if (KscExcel.Options != null) KscExcel.Options.ReportsPath = "/" + url;
+            routes.Add("KscExcelReport", new Route(url + "/{name}", new RouteValueDictionary { { "name", "" } }, new ReportsRouteHandler(url)));
+        }
+
         /// <summary>
         /// Maps the designer, e.g. <c>routes.MapKscExcelDesigner();</c> -&gt; /excel-designer.
         /// Call before the default MVC route. Needs <c>&lt;modules runAllManagedModulesForAllRequests="true"/&gt;</c> or the route to be handled by the UrlRoutingModule (default in MVC apps).

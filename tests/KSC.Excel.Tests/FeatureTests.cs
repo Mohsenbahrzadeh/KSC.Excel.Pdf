@@ -207,6 +207,29 @@ public class FeatureTests
     [InlineData("Hello World!")]
     public void Code128_decodes(string text) => Assert.Equal(text, Decode(Barcodes.Encode("code128", text), BarcodeFormat.CODE_128));
 
+    [Theory]
+    [InlineData("ean13", "5901234123457", BarcodeFormat.EAN_13)]
+    [InlineData("ean13", "590123412345", BarcodeFormat.EAN_13)]
+    [InlineData("ean13", "4006381333931", BarcodeFormat.EAN_13)]
+    [InlineData("ean8", "96385074", BarcodeFormat.EAN_8)]
+    [InlineData("ean8", "9638507", BarcodeFormat.EAN_8)]
+    [InlineData("code39", "INV-2024 0042", BarcodeFormat.CODE_39)]
+    [InlineData("code39", "ABC123$/+%", BarcodeFormat.CODE_39)]
+    public void Ean_and_code39_decode(string type, string text, BarcodeFormat fmt)
+    {
+        var expected = type == "code39" ? text : (type == "ean13" ? (text.Length == 12 ? text + "7" : text) : (text.Length == 7 ? text + "4" : text));
+        Assert.Equal(expected, Decode(Barcodes.Encode(type, text), fmt));
+    }
+
+    [Fact]
+    public void Ean_rejects_bad_input()
+    {
+        Assert.Throws<ArgumentException>(() => Barcodes.Encode("ean13", "5901234123450"));   // wrong check digit
+        Assert.Throws<ArgumentException>(() => Barcodes.Encode("ean13", "12345"));
+        Assert.Throws<ArgumentException>(() => Barcodes.Encode("ean8", "abcdefgh"));
+        Assert.Throws<ArgumentException>(() => Barcodes.Encode("code39", "lower*star"));
+    }
+
     [Fact]
     public void Code128_patterns_are_well_formed_and_bad_input_is_rejected()
     {
